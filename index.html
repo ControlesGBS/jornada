@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jornada & Performance — GBS Serviços</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size:14px}
+.hdr{background:#1a4a1a;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:12px}
+.hdr img{height:36px;width:auto}
+.hdr-title{font-size:16px;font-weight:500;letter-spacing:.5px;color:#c8e8c8;flex:1;text-align:center}
+.nav{display:flex;gap:2px;background:#0f2e0f;padding:6px 20px}
+.nav button{background:none;border:none;color:#90c090;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:13px}
+.nav button.ativo{background:#2d7a2d;color:#fff}
+.nav button:hover:not(.ativo){background:#1a4a1a}
+.pag{display:none;padding:16px 20px}
+.pag.ativo{display:block}
+.filtros{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:12px 16px;margin-bottom:10px}
+.filtros label{font-size:11px;color:#4a7a4a;display:block;margin-bottom:3px}
+.filtros select{border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px}
+.slicer-box{display:flex;align-items:center;gap:6px;background:#f0f8f0;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 10px;height:30px}
+.slicer-box label{color:#4a7a4a;font-size:11px;white-space:nowrap;margin:0}
+.slicer-box span{color:#1a4a1a;font-size:13px;font-weight:500;min-width:40px}
+.slicer-box input[type=range]{height:20px;width:80px;accent-color:#2d7a2d}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.kpi{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:10px 14px;text-align:center}
+.kpi-label{font-size:10px;color:#4a7a4a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
+.kpi-value{font-size:22px;font-weight:500;color:#1a4a1a}
+.twrap{border-radius:8px;border:0.5px solid #c0dcc0;overflow-x:auto;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
+thead th{background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap}
+tbody tr:nth-child(even){background:#f8fbf8}
+tbody tr.sem-trab td{color:#bbb}
+tbody tr.fds td{background:#fafff8 !important;color:#bbb}
+tbody tr.fds.sem-trab td{color:#ddd}
+tbody td{padding:6px 8px;text-align:center;border-bottom:0.5px solid #e8f4e8}
+td.rota-col{text-align:left;font-size:11px}
+.badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:500;margin:1px 2px;white-space:nowrap}
+.b-urb{background:#e6f1fb;color:#0c447c}
+.b-rur{background:#eaf3de;color:#27500a}
+.b-loc{background:#faeeda;color:#633806}
+.b-gd{background:#eeedfe;color:#3c3489}
+.b-irr{background:#fbeaf0;color:#72243e}
+.totais{display:flex;gap:20px;padding:8px 14px;background:#f0f8f0;border-top:0.5px solid #c0dcc0;font-size:12px;font-weight:500;color:#1a4a1a;border-radius:0 0 8px 8px;flex-wrap:wrap}
+.totais span{color:#4a7a4a;font-weight:400;margin-right:3px}
+.status-msg{padding:20px;text-align:center;color:#4a7a4a;font-size:13px}
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px}
+.card{background:#fff;border:0.5px solid #c0dcc0;border-radius:10px;padding:20px}
+.card h3{font-size:14px;font-weight:500;color:#1a4a1a;margin-bottom:4px}
+.card p{font-size:12px;color:#4a7a4a;margin-bottom:14px;line-height:1.5}
+.upload-area{border:1.5px dashed #90c090;border-radius:8px;padding:24px;text-align:center;cursor:pointer;transition:background .15s;display:block}
+.upload-area:hover{background:#f0f8f0}
+.upload-area input{display:none}
+.upload-area .icone{font-size:28px;margin-bottom:6px;color:#2d7a2d}
+.upload-area p{margin:0;font-size:12px;color:#4a7a4a}
+.btn{display:inline-block;padding:8px 20px;border-radius:6px;border:none;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s}
+.btn-verde{background:#2d7a2d;color:#fff}
+.btn-verde:hover{background:#1a5a1a}
+.btn-verde:disabled{background:#90c090;cursor:not-allowed}
+.progresso{margin-top:12px;font-size:12px;color:#1a4a1a;min-height:18px}
+.progresso.erro{color:#a32d2d}
+.progresso.ok{color:#2d7a2d}
+.tag-arquivo{display:inline-flex;align-items:center;gap:6px;background:#f0f8f0;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 10px;font-size:12px;color:#1a4a1a;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <img src="logo_gbs.png" alt="GBS" onerror="this.style.display='none'">
+  <div class="hdr-title">JORNADA &amp; PERFORMANCE</div>
+  <span id="user-info" style="font-size:12px;color:#90c090"></span>
+  <button onclick="sair()" style="background:none;border:0.5px solid #4a7a4a;color:#90c090;padding:4px 12px;border-radius:5px;cursor:pointer;font-size:12px;margin-left:8px">Sair</button>
+</div>
+
+<div class="nav">
+  <button class="ativo" onclick="irPara('painel',this)">Painel de jornada</button>
+  <button onclick="irPara('admin',this)">Administração</button>
+</div>
+
+<!-- PAINEL -->
+<div class="pag ativo" id="pag-painel">
+  <div class="filtros">
+    <div><label>Mês/Ano</label><select id="f-mes" onchange="carregarDados()"></select></div>
+    <div><label>Base</label><select id="f-base" onchange="carregarMatriculas()"><option value="">Todas</option></select></div>
+    <div>
+      <label>Matrícula / Leiturista</label>
+      <select id="f-mat" onchange="carregarDados()"><option value="">— selecione —</option></select>
+    </div>
+    <div class="slicer-box">
+      <label>Intervalo a partir de</label>
+      <input type="range" id="slicer" min="5" max="60" value="10" step="1"
+             oninput="document.getElementById('sv').textContent=this.value+' min';renderTabela()">
+      <span id="sv">10 min</span>
+    </div>
+  </div>
+  <div class="kpis" id="kpis">
+    <div class="kpi"><div class="kpi-label">Dias trabalhados</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Média horas trabalhadas</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Média início trabalho</div><div class="kpi-value">—</div></div>
+    <div class="kpi"><div class="kpi-label">Média de leituras</div><div class="kpi-value">—</div></div>
+  </div>
+  <div class="twrap">
+    <table>
+      <thead><tr>
+        <th style="width:42px">Mat.</th>
+        <th style="width:48px">RZ</th>
+        <th style="width:28px">Dia</th>
+        <th style="width:28px">Sem.</th>
+        <th style="width:56px">H. inicial</th>
+        <th style="width:56px">H. final</th>
+        <th style="width:60px">Intervalo</th>
+        <th style="width:65px">H. trab.</th>
+        <th style="width:50px">Leituras</th>
+        <th>Tipo rota (local)</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+      <tfoot><tr><td colspan="10" style="padding:0">
+        <div class="totais" id="totais">
+          <span style="color:#4a7a4a">Selecione matrícula e mês</span>
+        </div>
+      </td></tr></tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- ADMIN -->
+<div class="pag" id="pag-admin">
+  <div class="admin-grid">
+    <div class="card">
+      <h3>Upload — arquivo cru da Cemig</h3>
+      <p>Sobe o xlsx da Cemig (um RZ por arquivo). O sistema processa no navegador e alimenta <strong>todos os relatórios</strong> — jornada, impedimentos, transmissões. Se aquele RZ+período já existir, substitui.</p>
+      <label class="upload-area">
+        <input type="file" accept=".xlsx" id="inp-cemig" onchange="selecionarCemig(this)">
+        <div class="icone">&#8593;</div>
+        <p>Clique ou arraste o arquivo xlsx</p>
+      </label>
+      <div id="tag-cemig"></div>
+      <div style="margin-top:12px">
+        <button class="btn btn-verde" id="btn-cemig" onclick="processarCemig()" disabled>Processar e salvar</button>
+      </div>
+      <div class="progresso" id="prog-cemig"></div>
+    </div>
+
+    <div class="card">
+      <h3>Atualizar matrículas</h3>
+      <p>Sobe o MATRICULAS.xlsx atualizado. Substitui toda a tabela — use ao contratar ou demitir.</p>
+      <label class="upload-area">
+        <input type="file" accept=".xlsx" id="inp-mat" onchange="selecionarMat(this)">
+        <div class="icone">&#8593;</div>
+        <p>Clique ou arraste o MATRICULAS.xlsx</p>
+      </label>
+      <div id="tag-mat"></div>
+      <div style="margin-top:12px">
+        <button class="btn btn-verde" id="btn-mat" onclick="processarMatriculas()" disabled>Salvar matrículas</button>
+      </div>
+      <div class="progresso" id="prog-mat"></div>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <h3>Tabela local &rarr; base (fixa)</h3>
+      <p>Tabela já carregada com <strong id="qtd-locais">—</strong> locais. Só atualize se a Cemig incluir novas cidades.</p>
+      <label class="upload-area">
+        <input type="file" accept=".xlsx" id="inp-local" onchange="selecionarLocal(this)">
+        <div class="icone">&#8593;</div>
+        <p>Clique ou arraste o TabelaLocalBase.xlsx</p>
+      </label>
+      <div id="tag-local"></div>
+      <div style="margin-top:12px">
+        <button class="btn btn-verde" id="btn-local" onclick="processarLocal()" disabled>Atualizar tabela de locais</button>
+      </div>
+      <div class="progresso" id="prog-local"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://ndwivbhqglpnfyqwjbzu.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_IhuNziyT5VYrMKRixcPGjA_LAn5ku-7';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SEMANAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+// dados carregados do banco para o mês selecionado
+let dadosMes = [];
+let localMap = {};
+
+function irPara(id,btn){
+  if(id==='admin'){
+    const s=prompt('Senha de administração:');
+    if(s!=='Batman1'){if(s!==null)alert('Senha incorreta.');return;}
+    carregarInfoAdmin();
+  }
+  document.querySelectorAll('.pag').forEach(p=>p.classList.remove('ativo'));
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('ativo'));
+  document.getElementById('pag-'+id).classList.add('ativo');
+  btn.classList.add('ativo');
+}
+async function sair(){ await sb.auth.signOut(); location.reload(); }
+
+// ── FILTROS ──────────────────────────────────────────────────────
+async function iniciarFiltros(){
+  const sel=document.getElementById('f-mes');
+  const hoje=new Date();
+  for(let i=0;i<12;i++){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    const val=`${mm}/${d.getFullYear()}`;
+    sel.innerHTML+=`<option value="${val}">${val}</option>`;
+  }
+  const {data}=await sb.from('matriculas').select('base').order('base');
+  const bases=[...new Set((data||[]).map(r=>r.base).filter(Boolean))];
+  const selB=document.getElementById('f-base');
+  bases.forEach(b=>selB.innerHTML+=`<option value="${b}">${b}</option>`);
+  // Carregar mapa de locais uma vez
+  const {data:ld}=await sb.from('local_base').select('local,cidade');
+  (ld||[]).forEach(r=>localMap[r.local]=r.cidade);
+  await carregarMatriculas();
+}
+
+async function carregarMatriculas(){
+  const base=document.getElementById('f-base').value;
+  let q=sb.from('matriculas').select('matricula,nome_leiturista').eq('situacao','Ativo').order('nome_leiturista');
+  if(base) q=q.eq('base',base);
+  const {data}=await q;
+  const sel=document.getElementById('f-mat');
+  const atual=sel.value;
+  sel.innerHTML='<option value="">— selecione —</option>';
+  (data||[]).forEach(r=>sel.innerHTML+=`<option value="${r.matricula}">${r.matricula} — ${r.nome_leiturista}</option>`);
+  if(atual) sel.value=atual;
+  await carregarDados();
+}
+
+// ── CARREGAR DADOS DO MÊS (1 consulta) ──────────────────────────
+async function carregarDados(){
+  const mat=document.getElementById('f-mat').value;
+  const mes=document.getElementById('f-mes').value;
+  if(!mat||!mes){ dadosMes=[]; renderTabela(); return; }
+
+  const [mm,aa]=mes.split('/');
+  const di=`${aa}-${mm}-01`;
+  const diasMes=new Date(parseInt(aa),parseInt(mm),0).getDate();
+  const df=`${aa}-${mm}-${String(diasMes).padStart(2,'0')}`;
+
+  document.getElementById('tbody').innerHTML=
+    '<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
+
+  const {data,error}=await sb
+    .from('jornada')
+    .select('data,rz,hora_inicial,hora_final,span_min,qtd_leituras,gaps_json,rotas_json')
+    .eq('matricula',mat)
+    .gte('data',di).lte('data',df)
+    .order('data');
+
+  if(error){console.error(error);return;}
+  dadosMes=data||[];
+  renderTabela();
+}
+
+// ── RENDER — PURO JS, SEM BANCO ─────────────────────────────────
+function toHM(m){
+  if(m==null||m<0) return '00:00';
+  return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+}
+function toMin(h){
+  if(!h||!h.includes(':')) return 0;
+  const[hh,mi]=h.split(':').map(Number); return hh*60+mi;
+}
+function tipoRota(n){
+  const v=parseInt(n)||0;
+  if(v>=1&&v<=79)  return {l:'Urbano',c:'b-urb'};
+  if(v>=80&&v<=88) return {l:'Localidade',c:'b-loc'};
+  if((v>=89&&v<=94)||(v>=97&&v<=99)) return {l:'Rural',c:'b-rur'};
+  if(v===95) return {l:'Irrigantes',c:'b-irr'};
+  if(v===96) return {l:'GD',c:'b-gd'};
+  return {l:'Rural',c:'b-rur'};
+}
+
+function renderTabela(){
+  const mat=document.getElementById('f-mat').value;
+  const mes=document.getElementById('f-mes').value;
+  const limiar=parseInt(document.getElementById('slicer').value);
+  if(!mat||!mes) return;
+
+  const [mm,aa]=mes.split('/');
+  const diasMes=new Date(parseInt(aa),parseInt(mm),0).getDate();
+  const diaSem0=new Date(parseInt(aa),parseInt(mm)-1,1).getDay();
+
+  // Indexar dados por data
+  const porData={};
+  dadosMes.forEach(r=>porData[r.data]=r);
+
+  let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0;
+  const rows=[];
+
+  for(let d=1;d<=diasMes;d++){
+    const key=`${aa}-${mm}-${String(d).padStart(2,'0')}`;
+    const sem=(diaSem0+d-1)%7;
+    const fds=sem===0||sem===6;
+    const r=porData[key];
+
+    if(!r){
+      rows.push(`<tr class="${fds?'fds sem-trab':'sem-trab'}">
+        <td>${mat}</td><td>—</td><td>${d}</td>
+        <td style="font-size:11px">${SEMANAS[sem]}</td>
+        <td></td><td></td><td></td><td></td><td></td><td></td></tr>`);
+      continue;
+    }
+
+    // Calcular intervalo com o limiar atual do slicer (100% no navegador)
+    const gaps=JSON.parse(r.gaps_json||'[]');
+    const intervalo=gaps.filter(g=>g>=limiar).reduce((a,b)=>a+b,0);
+    const trab=Math.max(0,r.span_min-intervalo);
+
+    totalLeit+=r.qtd_leituras;
+    totalTrabMin+=trab;
+    somaIni+=toMin(r.hora_inicial);
+    diasTrab++;
+
+    // Badges de rota+local
+    const rotas=JSON.parse(r.rotas_json||'[]');
+    const vistos=new Map();
+    rotas.forEach(rl=>{
+      const[rt,lc]=rl.split('|');
+      const tp=tipoRota(rt);
+      const cidade=localMap[lc]||lc;
+      const k=`${tp.l}|${cidade}`;
+      if(!vistos.has(k)) vistos.set(k,{tp,cidade});
+    });
+    const badges=[...vistos.values()]
+      .map(({tp,cidade})=>`<span class="badge ${tp.c}">${tp.l} (${cidade})</span>`)
+      .join(' ');
+
+    rows.push(`<tr class="${fds?'fds':''}">
+      <td>${mat}</td>
+      <td style="font-size:11px">${r.rz||'—'}</td>
+      <td>${d}</td>
+      <td style="font-size:11px;color:#666">${SEMANAS[sem]}</td>
+      <td>${r.hora_inicial}</td>
+      <td>${r.hora_final}</td>
+      <td>${intervalo>0?toHM(intervalo):'—'}</td>
+      <td><strong>${toHM(trab)}</strong></td>
+      <td>${r.qtd_leituras}</td>
+      <td class="rota-col">${badges}</td>
+    </tr>`);
+  }
+
+  document.getElementById('tbody').innerHTML=rows.join('');
+
+  const mi=diasTrab>0?Math.round(somaIni/diasTrab):0;
+  const mt=diasTrab>0?Math.round(totalTrabMin/diasTrab):0;
+  const ml=diasTrab>0?Math.round(totalLeit/diasTrab):0;
+  document.getElementById('kpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Dias trabalhados</div><div class="kpi-value">${diasTrab}</div></div>
+    <div class="kpi"><div class="kpi-label">Média horas trabalhadas</div><div class="kpi-value">${toHM(mt)}</div></div>
+    <div class="kpi"><div class="kpi-label">Média início trabalho</div><div class="kpi-value">${toHM(mi)}</div></div>
+    <div class="kpi"><div class="kpi-label">Média de leituras</div><div class="kpi-value">${ml}</div></div>`;
+  document.getElementById('totais').innerHTML=`
+    <div><span>Total leituras:</span>${totalLeit.toLocaleString('pt-BR')}</div>
+    <div><span>Total horas trabalhadas:</span>${toHM(totalTrabMin)}</div>
+    <div><span>Dias trabalhados:</span>${diasTrab}</div>`;
+}
+
+// ── ADMIN: UPLOAD CEMIG ──────────────────────────────────────────
+let fileCemig=null,fileMat=null,fileLocal=null;
+
+function selecionarCemig(inp){
+  fileCemig=inp.files[0]; if(!fileCemig) return;
+  document.getElementById('tag-cemig').innerHTML=
+    `<div class="tag-arquivo">&#128196; ${fileCemig.name} (${(fileCemig.size/1024).toFixed(0)} KB)</div>`;
+  document.getElementById('btn-cemig').disabled=false;
+}
+
+async function processarCemig(){
+  if(!fileCemig) return;
+  const prog=document.getElementById('prog-cemig');
+  const btn=document.getElementById('btn-cemig');
+  btn.disabled=true; prog.className='progresso'; prog.textContent='Lendo arquivo...';
+  try{
+    const buf=await fileCemig.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',cellDates:true});
+
+    // Agrupar leituras por mat+data no navegador
+    const grupos={};
+    for(const sheetName of wb.SheetNames){
+      const ws=wb.Sheets[sheetName];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
+      let mat=null,ul=null,rz=null,lc=null,rota=null,emDados=false;
+      for(const row of rows){
+        const v0=row[0]!=null?String(row[0]).trim():'';
+        if(v0.startsWith('Unidade de Leitura:')){
+          const m=v0.match(/Unidade de Leitura: (\d{8})/);
+          if(m){ul=m[1];rz=ul.slice(0,2);lc=ul.slice(2,6);rota=parseInt(ul.slice(6));}
+          emDados=false;
+        } else if(v0.startsWith('Leiturista:')){
+          const m=v0.match(/Leiturista: (\S+)/);
+          if(m) mat=m[1];
+        } else if(v0==='Instalação'){
+          emDados=true;
+        } else if(emDados&&/^\d{10}$/.test(v0)){
+          const dh=row[15]!=null?String(row[15]).trim():null;
+          const hora=row[17]!=null?String(row[17]).trim():null;
+          if(!dh||!hora||!mat||!ul) continue;
+          const m2=dh.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+          if(!m2) continue;
+          const dataStr=`${m2[3]}-${m2[2]}-${m2[1]}`;
+          const chave=`${mat}|${dataStr}`;
+          if(!grupos[chave]) grupos[chave]={mat,data:dataStr,rzs:[],lc_rotas:[],horas:[]};
+          grupos[chave].horas.push(hora);
+          grupos[chave].rzs.push(rz);
+          grupos[chave].lc_rotas.push(`${rota}|${lc}`);
+        }
+      }
+    }
+
+    prog.textContent='Calculando jornadas...';
+    const toMin=h=>{const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
+    const registros=[];
+
+    for(const g of Object.values(grupos)){
+      const horas=g.horas.filter(h=>h&&h.includes(':')).sort();
+      if(horas.length<1) continue;
+      const hi=horas[0], hf=horas[horas.length-1];
+      const span=toMin(hf)-toMin(hi);
+      // Gaps >= 5min (mínimo do slicer)
+      const gaps=[];
+      for(let i=1;i<horas.length;i++){
+        const gap=toMin(horas[i])-toMin(horas[i-1]);
+        if(gap>=5) gaps.push(gap);
+      }
+      const rzs=[...new Set(g.rzs)].sort().join(',');
+      const rotasUnicas=[...new Set(g.lc_rotas)];
+      registros.push({
+        matricula:g.mat,
+        data:g.data,
+        rz:rzs,
+        hora_inicial:hi,
+        hora_final:hf,
+        span_min:span,
+        qtd_leituras:horas.length,
+        gaps_json:JSON.stringify(gaps),
+        rotas_json:JSON.stringify(rotasUnicas),
+      });
+    }
+
+    prog.textContent=`${registros.length} dias de jornada. Salvando...`;
+
+    // Substituir: apagar registros das mesmas mat+data deste arquivo
+    const chaves=[...new Set(registros.map(r=>r.matricula))];
+    const datas=[...new Set(registros.map(r=>r.data))];
+    await sb.from('jornada').delete()
+      .in('matricula',chaves).in('data',datas);
+
+    const LOTE=200;
+    for(let i=0;i<registros.length;i+=LOTE){
+      const {error}=await sb.from('jornada').insert(registros.slice(i,i+LOTE));
+      if(error) throw error;
+    }
+    prog.className='progresso ok';
+    prog.textContent=`\u2713 ${registros.length} registros de jornada salvos!`;
+  }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
+  btn.disabled=false;
+}
+
+function selecionarMat(inp){
+  fileMat=inp.files[0]; if(!fileMat) return;
+  document.getElementById('tag-mat').innerHTML=`<div class="tag-arquivo">&#128196; ${fileMat.name}</div>`;
+  document.getElementById('btn-mat').disabled=false;
+}
+async function processarMatriculas(){
+  if(!fileMat) return;
+  const prog=document.getElementById('prog-mat');
+  const btn=document.getElementById('btn-mat');
+  btn.disabled=true; prog.className='progresso'; prog.textContent='Lendo...';
+  try{
+    const buf=await fileMat.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:null});
+    const recs=rows.map(r=>({
+      matricula:r.MATRICULA!=null?String(r.MATRICULA).trim():null,
+      nome_leiturista:r.NOME_LEITURISTA||null,
+      funcao:r.FUNCAO||null,base:r.BASE||null,situacao:r.SITUACAO||null,
+    })).filter(r=>r.matricula);
+    await sb.from('matriculas').delete().neq('matricula','__x__');
+    const {error}=await sb.from('matriculas').insert(recs);
+    if(error) throw error;
+    prog.className='progresso ok'; prog.textContent=`\u2713 ${recs.length} matrículas salvas!`;
+  }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;}
+  btn.disabled=false;
+}
+
+function selecionarLocal(inp){
+  fileLocal=inp.files[0]; if(!fileLocal) return;
+  document.getElementById('tag-local').innerHTML=`<div class="tag-arquivo">&#128196; ${fileLocal.name}</div>`;
+  document.getElementById('btn-local').disabled=false;
+}
+async function processarLocal(){
+  if(!fileLocal) return;
+  const prog=document.getElementById('prog-local');
+  const btn=document.getElementById('btn-local');
+  btn.disabled=true; prog.className='progresso'; prog.textContent='Lendo...';
+  try{
+    const buf=await fileLocal.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array'});
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:null});
+    const recs=rows.map(r=>({
+      local:r.LOCAL!=null?String(r.LOCAL).trim():null,
+      cidade:r.CIDADE||null,base:r.BASE||null,
+    })).filter(r=>r.local);
+    await sb.from('local_base').delete().neq('local','__x__');
+    const {error}=await sb.from('local_base').insert(recs);
+    if(error) throw error;
+    recs.forEach(r=>localMap[r.local]=r.cidade);
+    document.getElementById('qtd-locais').textContent=recs.length;
+    prog.className='progresso ok'; prog.textContent=`\u2713 ${recs.length} locais salvos!`;
+  }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;}
+  btn.disabled=false;
+}
+
+async function carregarInfoAdmin(){
+  const {count}=await sb.from('local_base').select('*',{count:'exact',head:true});
+  document.getElementById('qtd-locais').textContent=count||'—';
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+(async()=>{
+  const {data:{user}}=await sb.auth.getUser();
+  if(!user){location.href='login.html';return;}
+  document.getElementById('user-info').textContent=user.email;
+  await iniciarFiltros();
+})();
+</script>
+</body>
+</html>
