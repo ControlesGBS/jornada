@@ -406,7 +406,7 @@ async function processarCemig(){
           if(!m2) continue;
           const dataStr=`${m2[3]}-${m2[2]}-${m2[1]}`;
           const chave=`${mat}|${dataStr}`;
-          if(!grupos[chave]) grupos[chave]={mat,data:dataStr,rzs:[],lc_rotas:[],horas:[]};
+          if(!grupos[chave]) grupos[chave]={mat,data:dataStr,ul,rzs:[],lc_rotas:[],horas:[]};
           grupos[chave].horas.push(hora);
           grupos[chave].rzs.push(rz);
           grupos[chave].lc_rotas.push(`${rota}|${lc}`);
@@ -434,6 +434,7 @@ async function processarCemig(){
       registros.push({
         matricula:g.mat,
         data:g.data,
+        ul:g.ul,
         rz:rzs,
         hora_inicial:hi,
         hora_final:hf,
@@ -446,11 +447,9 @@ async function processarCemig(){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Substituir: apagar registros das mesmas mat+data deste arquivo
-    const chaves=[...new Set(registros.map(r=>r.matricula))];
-    const datas=[...new Set(registros.map(r=>r.data))];
-    await sb.from('jornada').delete()
-      .in('matricula',chaves).in('data',datas);
+    // Substituir: apagar por ul (chave única por arquivo)
+    const uls=[...new Set(registros.map(r=>r.ul))];
+    for(const ul of uls) await sb.from('jornada').delete().eq('ul',ul);
 
     const LOTE=200;
     for(let i=0;i<registros.length;i+=LOTE){
