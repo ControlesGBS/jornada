@@ -288,8 +288,13 @@ function renderTabela(){
   const diaSem0=new Date(parseInt(aa),parseInt(mm)-1,1).getDay();
 
   // Indexar dados por data
+  // Agrupar múltiplas linhas por data (1 linha por RZ no banco → mesclar por data no painel)
   const porData={};
-  dadosMes.forEach(r=>porData[r.data]=r);
+  dadosMes.forEach(r=>{
+    const d=r.data;
+    if(!porData[d]){porData[d]={linhas:[]};}
+    porData[d].linhas.push(r);
+  });
 
   let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0;
   const rows=[];
@@ -298,9 +303,9 @@ function renderTabela(){
     const key=`${aa}-${mm}-${String(d).padStart(2,'0')}`;
     const sem=(diaSem0+d-1)%7;
     const fds=sem===0||sem===6;
-    const r=porData[key];
+    const grupo=porData[key];
 
-    if(!r){
+    if(!grupo){
       rows.push(`<tr class="${fds?'fds sem-trab':'sem-trab'}">
         <td>${mat}</td><td>—</td><td>${d}</td>
         <td style="font-size:11px">${SEMANAS[sem]}</td>
@@ -308,18 +313,42 @@ function renderTabela(){
       continue;
     }
 
-    // Calcular intervalo com o limiar atual do slicer (100% no navegador)
-    const gaps=JSON.parse(r.gaps_json||'[]');
-    const intervalo=gaps.filter(g=>g>=limiar).reduce((a,b)=>a+b,0);
-    const trab=Math.max(0,r.span_min-intervalo);
+    // Mesclar todas as linhas do dia (múltiplos RZs)
+    let todasHoras=[];
+    let totalLeitDia=0;
+    let todasRotas=[];
+    let todosRzs=[];
+    grupo.linhas.forEach(ln=>{
+      const h=JSON.parse(ln.horas_json||'[]');
+      todasHoras=[...todasHoras,...h];
+      totalLeitDia+=ln.qtd_leituras||0;
+      const rt=JSON.parse(ln.rotas_json||'[]');
+      todasRotas=[...todasRotas,...rt];
+      const rz=ln.rz?ln.rz.split(','):[];
+      todosRzs=[...todosRzs,...rz];
+    });
+    todasHoras=[...new Set(todasHoras)].sort();
+    todosRzs=[...new Set(todosRzs)].sort();
+    const hi=todasHoras[0];
+    const hf=todasHoras[todasHoras.length-1];
+    const spanDia=toMin(hf)-toMin(hi);
+    // Recalcular gaps reais sobre todas as horas do dia
+    const gapsDia=[];
+    for(let i=1;i<todasHoras.length;i++){
+      const gap=toMin(todasHoras[i])-toMin(todasHoras[i-1]);
+      if(gap>=5) gapsDia.push(gap);
+    }
+    const intervalo=gapsDia.filter(g=>g>=limiar).reduce((a,b)=>a+b,0);
+    const trab=Math.max(0,spanDia-intervalo);
+    const rzStr=todosRzs.join(',');
 
-    totalLeit+=r.qtd_leituras;
+    totalLeit+=totalLeitDia;
     totalTrabMin+=trab;
-    somaIni+=toMin(r.hora_inicial);
+    somaIni+=toMin(hi);
     diasTrab++;
 
     // Badges de rota+local
-    const rotas=JSON.parse(r.rotas_json||'[]');
+    const rotas=[...new Set(todasRotas)];
     const vistos=new Map();
     rotas.forEach(rl=>{
       const[rt,lc]=rl.split('|');
@@ -334,14 +363,14 @@ function renderTabela(){
 
     rows.push(`<tr class="${fds?'fds':''}">
       <td>${mat}</td>
-      <td style="font-size:11px">${r.rz||'—'}</td>
+      <td style="font-size:11px">${rzStr||'—'}</td>
       <td>${d}</td>
       <td style="font-size:11px;color:#666">${SEMANAS[sem]}</td>
-      <td>${r.hora_inicial}</td>
-      <td>${r.hora_final}</td>
+      <td>${hi}</td>
+      <td>${hf}</td>
       <td>${intervalo>0?toHM(intervalo):'—'}</td>
       <td><strong>${toHM(trab)}</strong></td>
-      <td>${r.qtd_leituras}</td>
+      <td>${totalLeitDia}</td>
       <td class="rota-col">${badges}</td>
     </tr>`);
   }
@@ -448,65 +477,28 @@ async function processarCemig(){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Buscar dados existentes para mesclagem/substituição
+    // Nova abordagem: 1 linha por matricula+data+rz
+    // Re-upload do mesmo RZ substitui, RZ diferente convive no banco
+    const rzDoArquivo=registros[0]?.rz||'';
+    // Deletar registros deste RZ+datas que já existem no banco
     const matsNovas=[...new Set(registros.map(r=>r.matricula))];
     const datasNovas=[...new Set(registros.map(r=>r.data))];
-    const rzDoArquivo=registros[0]?.rz||'';
-    const {data:existentes}=await sb.from('jornada').select('*')
+    const {data:existentes}=await sb.from('jornada').select('id,matricula,data,rz')
       .in('matricula',matsNovas).in('data',datasNovas);
-    const existMap={};
-    (existentes||[]).forEach(e=>{existMap[e.matricula+'|'+e.data]=e;});
-
-    const mesclados=registros.map(r=>{
-      const k=r.matricula+'|'+r.data;
-      const ex=existMap[k];
-      if(!ex) return r;
-      // Se o registro existente veio do mesmo RZ → substitui (re-upload)
-      const rzExistente=ex.rz?ex.rz.split(',')[0]:'';
-      if(rzExistente===rzDoArquivo) return r;
-      const rotasEx=JSON.parse(ex.rotas_json||'[]');
-      const rotasNov=JSON.parse(r.rotas_json||'[]');
-      const rzEx=ex.rz?ex.rz.split(','):[];
-      const rzNov=r.rz?r.rz.split(','):[];
-      const rzUniq=[...new Set([...rzEx,...rzNov])].sort().join(',');
-      const tM=h=>{if(!h||!h.includes(':'))return 0;const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
-      const tH=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
-      // Mesclar todas as horas e recalcular gaps do zero
-      const horasEx=JSON.parse(ex.horas_json||'[]');
-      const horasNov=JSON.parse(r.horas_json||'[]');
-      const horasTodas=[...new Set([...horasEx,...horasNov])].sort();
-      const hi=horasTodas[0];
-      const hf=horasTodas[horasTodas.length-1];
-      const hiMin=tM(hi); const hfMin=tM(hf);
-      const gaps5=[];
-      for(let i=1;i<horasTodas.length;i++){
-        const g=tM(horasTodas[i])-tM(horasTodas[i-1]);
-        if(g>=5) gaps5.push(g);
-      }
-      return {
-        ...r,
-        rz:rzUniq,
-        hora_inicial:hi,
-        hora_final:hf,
-        span_min:hfMin-hiMin,
-        qtd_leituras:(ex.qtd_leituras||0)+(r.qtd_leituras||0),
-        gaps_json:JSON.stringify(gaps5),
-        horas_json:JSON.stringify(horasTodas),
-        rotas_json:JSON.stringify([...new Set([...rotasEx,...rotasNov])]),
-      };
-    });
-
-    // Deletar APENAS as combinações mat+data que existem no arquivo novo
-    const chavesNovas=registros.map(r=>r.matricula+'|'+r.data);
+    // Apagar só os registros que têm o mesmo RZ do arquivo atual
     const idsParaDeletar=(existentes||[])
-      .filter(e=>chavesNovas.includes(e.matricula+'|'+e.data))
+      .filter(e=>{
+        const rzs=e.rz?e.rz.split(','):[];
+        return rzs.includes(rzDoArquivo);
+      })
       .map(e=>e.id);
     if(idsParaDeletar.length){
       await sb.from('jornada').delete().in('id',idsParaDeletar);
     }
+    // Inserir novos registros
     const LOTE=200;
-    for(let i=0;i<mesclados.length;i+=LOTE){
-      const {error}=await sb.from('jornada').insert(mesclados.slice(i,i+LOTE));
+    for(let i=0;i<registros.length;i+=LOTE){
+      const {error}=await sb.from('jornada').insert(registros.slice(i,i+LOTE));
       if(error) throw error;
     }
     prog.className='progresso ok';
