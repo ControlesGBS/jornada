@@ -31,12 +31,11 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .kpi-value{font-size:22px;font-weight:500;color:#1a4a1a}
 .twrap{border-radius:8px;border:0.5px solid #c0dcc0;overflow-x:auto;background:#fff}
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
-thead th{background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap}
+thead th{background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d}
 tbody tr:nth-child(even){background:#f8fbf8}
 tbody tr.sem-trab td{color:#bbb}
-tbody tr.fds td{background:#fafff8 !important;color:#bbb}
-tbody tr.fds.sem-trab td{color:#ddd}
-tbody td{padding:6px 8px;text-align:center;border-bottom:0.5px solid #e8f4e8}
+
+tbody td{padding:6px 8px;text-align:center;border-bottom:0.5px solid #c8e0c8;border-right:0.5px solid #e8f4e8}
 td.rota-col{text-align:left;font-size:11px}
 .badge{display:inline-block;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:500;margin:1px 2px;white-space:nowrap}
 .b-urb{background:#e6f1fb;color:#0c447c}
@@ -113,7 +112,10 @@ td.rota-col{text-align:left;font-size:11px}
         <th style="width:56px">H. final</th>
         <th style="width:60px">Intervalo</th>
         <th style="width:65px">H. trab.</th>
-        <th style="width:50px">Leituras</th>
+        <th style="width:55px">Leituras</th>
+        <th style="width:55px">Imp. GBS</th>
+        <th style="width:65px">Imp. CEMIG</th>
+        <th style="width:55px">Total imp.</th>
         <th>Tipo rota (local)</th>
       </tr></thead>
       <tbody id="tbody"></tbody>
@@ -248,7 +250,7 @@ async function carregarDados(){
 
   const {data,error}=await sb
     .from('jornada')
-    .select('data,rz,hora_inicial,hora_final,span_min,qtd_leituras,gaps_json,rotas_json,horas_json')
+    .select('data,rz,hora_inicial,hora_final,span_min,qtd_leituras,gaps_json,rotas_json,horas_json,imp_gbs,imp_cemig')
     .eq('matricula',mat)
     .gte('data',di).lte('data',df)
     .order('data');
@@ -306,10 +308,11 @@ function renderTabela(){
     const grupo=porData[key];
 
     if(!grupo){
-      rows.push(`<tr class="${fds?'fds sem-trab':'sem-trab'}">
+      const corDia=fds?'color:#dc2626;font-weight:500':'';
+      rows.push(`<tr class="sem-trab">
         <td>${mat}</td><td>—</td><td>${d}</td>
-        <td style="font-size:11px">${SEMANAS[sem]}</td>
-        <td></td><td></td><td></td><td></td><td></td><td></td></tr>`);
+        <td style="font-size:11px;${corDia}">${SEMANAS[sem]}</td>
+        <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`);
       continue;
     }
 
@@ -342,10 +345,18 @@ function renderTabela(){
     const trab=Math.max(0,spanDia-intervalo);
     const rzStr=todosRzs.join(',');
 
-    totalLeit+=totalLeitDia;
-    totalTrabMin+=trab;
-    somaIni+=toMin(hi);
-    diasTrab++;
+    const impGbsDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_gbs||0),0);
+    const impCemigDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_cemig||0),0);
+    const totalImpDia=impGbsDia+impCemigDia;
+    // Mínimo 10 leituras para contar como dia trabalhado
+    if(totalLeitDia>=10){
+      totalLeit+=totalLeitDia;
+      totalTrabMin+=trab;
+      somaIni+=toMin(hi);
+      diasTrab++;
+    } else {
+      totalLeit+=totalLeitDia;
+    }
 
     // Badges de rota+local
     const rotas=[...new Set(todasRotas)];
@@ -361,16 +372,21 @@ function renderTabela(){
       .map(({tp,cidade})=>`<span class="badge ${tp.c}">${tp.l} (${cidade})</span>`)
       .join(' ');
 
-    rows.push(`<tr class="${fds?'fds':''}">
+    const corDia2=fds?'color:#dc2626;font-weight:500':'color:#666';
+    const pouco=totalLeitDia<10;
+    rows.push(`<tr class="${pouco?'sem-trab':''}">
       <td>${mat}</td>
       <td style="font-size:11px">${rzStr||'—'}</td>
       <td>${d}</td>
-      <td style="font-size:11px;color:#666">${SEMANAS[sem]}</td>
-      <td>${hi}</td>
+      <td style="font-size:11px;${corDia2}">${SEMANAS[sem]}</td>
+      <td>${pouco?'<span style="color:#bbb">':''} ${hi}${pouco?'</span>':''}</td>
       <td>${hf}</td>
       <td>${intervalo>0?toHM(intervalo):'—'}</td>
       <td><strong>${toHM(trab)}</strong></td>
       <td>${totalLeitDia}</td>
+      <td>${impGbsDia||'—'}</td>
+      <td>${impCemigDia||'—'}</td>
+      <td>${totalImpDia||'—'}</td>
       <td class="rota-col">${badges}</td>
     </tr>`);
   }
@@ -430,15 +446,22 @@ async function processarCemig(){
         } else if(emDados&&/^\d{10}$/.test(v0)){
           const dh=row[15]!=null?String(row[15]).trim():null;
           const hora=row[17]!=null?String(row[17]).trim():null;
+          const oc=row[12]!=null?parseInt(String(row[12]).trim())||0:0;
           if(!dh||!hora||!mat||!ul) continue;
           const m2=dh.match(/(\d{2})\/(\d{2})\/(\d{4})/);
           if(!m2) continue;
           const dataStr=`${m2[3]}-${m2[2]}-${m2[1]}`;
           const chave=`${mat}|${dataStr}`;
-          if(!grupos[chave]) grupos[chave]={mat,data:dataStr,ul,rzs:[],lc_rotas:[],horas:[]};
+          if(!grupos[chave]) grupos[chave]={mat,data:dataStr,ul,rzs:[],lc_rotas:[],horas:[],imp_gbs:0,imp_cemig:0};
           grupos[chave].horas.push(hora);
           grupos[chave].rzs.push(rz);
           grupos[chave].lc_rotas.push(`${rota}|${lc}`);
+          // Impedimentos: OC > 1999
+          const OC_CEMIG=new Set([3311,3376,3804,3894,3895,3901,3902,3903,3904,3905,3906,3907,3908,5109,5802,6820,6824,6872,7000]);
+          if(oc>1999){
+            if(OC_CEMIG.has(oc)) grupos[chave].imp_cemig++;
+            else grupos[chave].imp_gbs++;
+          }
         }
       }
     }
@@ -472,6 +495,8 @@ async function processarCemig(){
         gaps_json:JSON.stringify(gaps),
         rotas_json:JSON.stringify(rotasUnicas),
         horas_json:JSON.stringify(horas),
+        imp_gbs:g.imp_gbs||0,
+        imp_cemig:g.imp_cemig||0,
       });
     }
 
