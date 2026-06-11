@@ -447,13 +447,51 @@ async function processarCemig(){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Substituir: apagar por ul (chave única por arquivo)
-    const uls=[...new Set(registros.map(r=>r.ul))];
-    for(const ul of uls) await sb.from('jornada').delete().eq('ul',ul);
+    // Mesclar com dados existentes (mesmo leiturista pode ter múltiplos RZs no dia)
+    const matsNovas=[...new Set(registros.map(r=>r.matricula))];
+    const datasNovas=[...new Set(registros.map(r=>r.data))];
+    const {data:existentes}=await sb.from('jornada').select('*')
+      .in('matricula',matsNovas).in('data',datasNovas);
+    const existMap={};
+    (existentes||[]).forEach(e=>{existMap[e.matricula+'|'+e.data]=e;});
 
+    // Mesclar: somar horas e leituras, unir RZs e rotas
+    const mesclados=registros.map(r=>{
+      const k=r.matricula+'|'+r.data;
+      const ex=existMap[k];
+      if(!ex) return r;
+      const gapsEx=JSON.parse(ex.gaps_json||'[]');
+      const gapsNov=JSON.parse(r.gaps_json||'[]');
+      const rotasEx=JSON.parse(ex.rotas_json||'[]');
+      const rotasNov=JSON.parse(r.rotas_json||'[]');
+      const rzEx=ex.rz?ex.rz.split(','):[];
+      const rzNov=r.rz?r.rz.split(','):[];
+      const rzUniq=[...new Set([...rzEx,...rzNov])].sort().join(',');
+      // Recalcular span: pegar a maior janela (hi mais cedo, hf mais tarde)
+      const toMin=h=>{if(!h||!h.includes(':'))return 0;const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
+      const hiMin=Math.min(toMin(ex.hora_inicial),toMin(r.hora_inicial));
+      const hfMin=Math.max(toMin(ex.hora_final),toMin(r.hora_final));
+      const toHM=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+      return {
+        ...r,
+        rz:rzUniq,
+        hora_inicial:toHM(hiMin),
+        hora_final:toHM(hfMin),
+        span_min:hfMin-hiMin,
+        qtd_leituras:(ex.qtd_leituras||0)+(r.qtd_leituras||0),
+        gaps_json:JSON.stringify([...gapsEx,...gapsNov]),
+        rotas_json:JSON.stringify([...new Set([...rotasEx,...rotasNov])]),
+      };
+    });
+
+    // Deletar existentes e reinserir mesclados
+    if(existentes&&existentes.length){
+      await sb.from('jornada').delete()
+        .in('matricula',matsNovas).in('data',datasNovas);
+    }
     const LOTE=200;
-    for(let i=0;i<registros.length;i+=LOTE){
-      const {error}=await sb.from('jornada').insert(registros.slice(i,i+LOTE));
+    for(let i=0;i<mesclados.length;i+=LOTE){
+      const {error}=await sb.from('jornada').insert(mesclados.slice(i,i+LOTE));
       if(error) throw error;
     }
     prog.className='progresso ok';
