@@ -447,7 +447,8 @@ async function processarCemig(){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Mesclar com dados existentes (mesmo leiturista pode ter múltiplos RZs no dia)
+    // Mesclar com dados existentes — busca só as combinações mat+data que existem no arquivo
+    const chavesNovas=registros.map(r=>r.matricula+'|'+r.data);
     const matsNovas=[...new Set(registros.map(r=>r.matricula))];
     const datasNovas=[...new Set(registros.map(r=>r.data))];
     const {data:existentes}=await sb.from('jornada').select('*')
@@ -455,7 +456,10 @@ async function processarCemig(){
     const existMap={};
     (existentes||[]).forEach(e=>{existMap[e.matricula+'|'+e.data]=e;});
 
-    // Mesclar: somar horas e leituras, unir RZs e rotas
+    const toMin=h=>{if(!h||!h.includes(':'))return 0;const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
+    const toHM=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+
+    // Mesclar só os registros que existem no arquivo novo
     const mesclados=registros.map(r=>{
       const k=r.matricula+'|'+r.data;
       const ex=existMap[k];
@@ -467,11 +471,8 @@ async function processarCemig(){
       const rzEx=ex.rz?ex.rz.split(','):[];
       const rzNov=r.rz?r.rz.split(','):[];
       const rzUniq=[...new Set([...rzEx,...rzNov])].sort().join(',');
-      // Recalcular span: pegar a maior janela (hi mais cedo, hf mais tarde)
-      const toMin=h=>{if(!h||!h.includes(':'))return 0;const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
       const hiMin=Math.min(toMin(ex.hora_inicial),toMin(r.hora_inicial));
       const hfMin=Math.max(toMin(ex.hora_final),toMin(r.hora_final));
-      const toHM=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
       return {
         ...r,
         rz:rzUniq,
@@ -484,10 +485,12 @@ async function processarCemig(){
       };
     });
 
-    // Deletar existentes e reinserir mesclados
-    if(existentes&&existentes.length){
-      await sb.from('jornada').delete()
-        .in('matricula',matsNovas).in('data',datasNovas);
+    // Deletar APENAS as combinações mat+data que existem no arquivo novo
+    const idsParaDeletar=(existentes||[])
+      .filter(e=>chavesNovas.includes(e.matricula+'|'+e.data))
+      .map(e=>e.id);
+    if(idsParaDeletar.length){
+      await sb.from('jornada').delete().in('id',idsParaDeletar);
     }
     const LOTE=200;
     for(let i=0;i<mesclados.length;i+=LOTE){
