@@ -456,9 +456,6 @@ async function processarCemig(){
     const existMap={};
     (existentes||[]).forEach(e=>{existMap[e.matricula+'|'+e.data]=e;});
 
-    const toMin=h=>{if(!h||!h.includes(':'))return 0;const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
-    const toHM=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
-
     // Mesclar só os registros que existem no arquivo novo
     const mesclados=registros.map(r=>{
       const k=r.matricula+'|'+r.data;
@@ -471,13 +468,15 @@ async function processarCemig(){
       const rzEx=ex.rz?ex.rz.split(','):[];
       const rzNov=r.rz?r.rz.split(','):[];
       const rzUniq=[...new Set([...rzEx,...rzNov])].sort().join(',');
-      const hiMin=Math.min(toMin(ex.hora_inicial),toMin(r.hora_inicial));
-      const hfMin=Math.max(toMin(ex.hora_final),toMin(r.hora_final));
+      const tM=h=>{if(!h||!h.includes(':'))return 0;const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
+      const tH=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+      const hiMin=Math.min(tM(ex.hora_inicial),tM(r.hora_inicial));
+      const hfMin=Math.max(tM(ex.hora_final),tM(r.hora_final));
       return {
         ...r,
         rz:rzUniq,
-        hora_inicial:toHM(hiMin),
-        hora_final:toHM(hfMin),
+        hora_inicial:tH(hiMin),
+        hora_final:tH(hfMin),
         span_min:hfMin-hiMin,
         qtd_leituras:(ex.qtd_leituras||0)+(r.qtd_leituras||0),
         gaps_json:JSON.stringify([...gapsEx,...gapsNov]),
