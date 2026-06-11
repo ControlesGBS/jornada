@@ -248,7 +248,7 @@ async function carregarDados(){
 
   const {data,error}=await sb
     .from('jornada')
-    .select('data,rz,hora_inicial,hora_final,span_min,qtd_leituras,gaps_json,rotas_json')
+    .select('data,rz,hora_inicial,hora_final,span_min,qtd_leituras,gaps_json,rotas_json,horas_json')
     .eq('matricula',mat)
     .gte('data',di).lte('data',df)
     .order('data');
