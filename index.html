@@ -442,6 +442,7 @@ async function processarCemig(){
         qtd_leituras:horas.length,
         gaps_json:JSON.stringify(gaps),
         rotas_json:JSON.stringify(rotasUnicas),
+        horas_json:JSON.stringify(horas),
       });
     }
 
@@ -461,8 +462,6 @@ async function processarCemig(){
       const k=r.matricula+'|'+r.data;
       const ex=existMap[k];
       if(!ex) return r;
-      const gapsEx=JSON.parse(ex.gaps_json||'[]');
-      const gapsNov=JSON.parse(r.gaps_json||'[]');
       const rotasEx=JSON.parse(ex.rotas_json||'[]');
       const rotasNov=JSON.parse(r.rotas_json||'[]');
       const rzEx=ex.rz?ex.rz.split(','):[];
@@ -470,16 +469,27 @@ async function processarCemig(){
       const rzUniq=[...new Set([...rzEx,...rzNov])].sort().join(',');
       const tM=h=>{if(!h||!h.includes(':'))return 0;const[hh,mi]=h.split(':').map(Number);return hh*60+mi;};
       const tH=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
-      const hiMin=Math.min(tM(ex.hora_inicial),tM(r.hora_inicial));
-      const hfMin=Math.max(tM(ex.hora_final),tM(r.hora_final));
+      // Mesclar todas as horas e recalcular gaps do zero
+      const horasEx=JSON.parse(ex.horas_json||'[]');
+      const horasNov=JSON.parse(r.horas_json||'[]');
+      const horasTodas=[...new Set([...horasEx,...horasNov])].sort();
+      const hi=horasTodas[0];
+      const hf=horasTodas[horasTodas.length-1];
+      const hiMin=tM(hi); const hfMin=tM(hf);
+      const gaps5=[];
+      for(let i=1;i<horasTodas.length;i++){
+        const g=tM(horasTodas[i])-tM(horasTodas[i-1]);
+        if(g>=5) gaps5.push(g);
+      }
       return {
         ...r,
         rz:rzUniq,
-        hora_inicial:tH(hiMin),
-        hora_final:tH(hfMin),
+        hora_inicial:hi,
+        hora_final:hf,
         span_min:hfMin-hiMin,
         qtd_leituras:(ex.qtd_leituras||0)+(r.qtd_leituras||0),
-        gaps_json:JSON.stringify([...gapsEx,...gapsNov]),
+        gaps_json:JSON.stringify(gaps5),
+        horas_json:JSON.stringify(horasTodas),
         rotas_json:JSON.stringify([...new Set([...rotasEx,...rotasNov])]),
       };
     });
