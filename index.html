@@ -448,20 +448,22 @@ async function processarCemig(){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Mesclar com dados existentes — busca só as combinações mat+data que existem no arquivo
-    const chavesNovas=registros.map(r=>r.matricula+'|'+r.data);
+    // Buscar dados existentes para mesclagem/substituição
     const matsNovas=[...new Set(registros.map(r=>r.matricula))];
     const datasNovas=[...new Set(registros.map(r=>r.data))];
+    const rzDoArquivo=registros[0]?.rz||'';
     const {data:existentes}=await sb.from('jornada').select('*')
       .in('matricula',matsNovas).in('data',datasNovas);
     const existMap={};
     (existentes||[]).forEach(e=>{existMap[e.matricula+'|'+e.data]=e;});
 
-    // Mesclar só os registros que existem no arquivo novo
     const mesclados=registros.map(r=>{
       const k=r.matricula+'|'+r.data;
       const ex=existMap[k];
       if(!ex) return r;
+      // Se o registro existente veio do mesmo RZ → substitui (re-upload)
+      const rzExistente=ex.rz?ex.rz.split(',')[0]:'';
+      if(rzExistente===rzDoArquivo) return r;
       const rotasEx=JSON.parse(ex.rotas_json||'[]');
       const rotasNov=JSON.parse(r.rotas_json||'[]');
       const rzEx=ex.rz?ex.rz.split(','):[];
