@@ -432,7 +432,7 @@ async function processarCemig(){
     for(const sheetName of wb.SheetNames){
       const ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
-      let mat=null,ul=null,rz=null,lc=null,rota=null,emDados=false;
+      let mat=null,ul=null,rz=null,lc=null,rota=null,emDados=false,ultimoImpedimento=null,ultimaInstalacao=null;
       for(const row of rows){
         const v0=row[0]!=null?String(row[0]).trim():'';
         if(v0.startsWith('Unidade de Leitura:')){
@@ -448,6 +448,8 @@ async function processarCemig(){
           const dh=row[15]!=null?String(row[15]).trim():null;
           const hora=row[17]!=null?String(row[17]).trim():null;
           const oc=row[12]!=null?parseInt(String(row[12]).trim())||0:0;
+          const medidor=row[3]!=null?String(row[3]).trim():null;
+          const qtdDig=row[32]!=null?parseInt(String(row[32]).trim())||1:1;
           if(!dh||!hora||!mat||!ul) continue;
           const m2=dh.match(/(\d{2})\/(\d{2})\/(\d{4})/);
           if(!m2) continue;
@@ -457,12 +459,28 @@ async function processarCemig(){
           grupos[chave].horas.push(hora);
           grupos[chave].rzs.push(rz);
           grupos[chave].lc_rotas.push(`${rota}|${lc}`);
-          // Impedimentos: OC > 1999
+          // Impedimentos: OC > 1999 — salvar para tabela de impedimentos
           const OC_CEMIG=new Set([3311,3376,3804,3894,3895,3901,3902,3903,3904,3905,3906,3907,3908,5109,5802,6820,6824,6872,7000]);
           if(oc>1999){
-            if(OC_CEMIG.has(oc)) grupos[chave].imp_cemig++;
+            const resp=OC_CEMIG.has(oc)?'CEMIG':'GBS';
+            if(resp==='CEMIG') grupos[chave].imp_cemig++;
             else grupos[chave].imp_gbs++;
+            // Guardar dados do impedimento para salvar depois
+            if(!grupos[chave].impedimentos) grupos[chave].impedimentos=[];
+            grupos[chave].impedimentos.push({
+              instalacao:v0, medidor, oc_str:String(oc),
+              qtd_digitacao:qtdDig, responsabilidade:resp,
+              ul, rz, local_cod:lc, data:dataStr, matricula:mat,
+              endereco:'',
+            });
+            ultimoImpedimento=grupos[chave].impedimentos[grupos[chave].impedimentos.length-1];
           }
+          ultimaInstalacao=v0;
+        } else if(emDados && ultimoImpedimento && v0 && !/^\d{10}$/.test(v0)){
+          // Linha par: endereço do cliente
+          const end=row[17]!=null?String(row[17]).trim():'';
+          if(end && ultimoImpedimento.endereco==='') ultimoImpedimento.endereco=end;
+          ultimoImpedimento=null;
         }
       }
     }
@@ -527,8 +545,62 @@ async function processarCemig(){
       const {error}=await sb.from('jornada').insert(registros.slice(i,i+LOTE));
       if(error) throw error;
     }
+    // Salvar impedimentos na tabela impedimentos
+    const impsParaSalvar=[];
+    for(const g of Object.values(grupos)){
+      if(g.impedimentos && g.impedimentos.length){
+        for(const imp of g.impedimentos){
+          const localInfo={}; // será enriquecido com local_base
+          impsParaSalvar.push({
+            data:imp.data,
+            matricula:imp.matricula,
+            rz:imp.rz,
+            ul:imp.ul,
+            instalacao:imp.instalacao,
+            medidor:imp.medidor,
+            ocorrencia:imp.oc_str,
+            endereco:imp.endereco,
+            qtd_digitacao:imp.qtd_digitacao,
+            responsabilidade:imp.responsabilidade,
+            local_cod:imp.local_cod,
+          });
+        }
+      }
+    }
+
+    if(impsParaSalvar.length){
+      prog.textContent='Enriquecendo com base/cidade...';
+      // Buscar local_base para enriquecer
+      const locCods=[...new Set(impsParaSalvar.map(r=>r.local_cod).filter(Boolean))];
+      const {data:lbData}=await sb.from('local_base').select('local,cidade,base').in('local',locCods);
+      const lbMap={};
+      (lbData||[]).forEach(r=>lbMap[r.local]={cidade:r.cidade,base:r.base});
+
+      const impsEnriq=impsParaSalvar.map(r=>{
+        const lb=lbMap[r.local_cod]||{};
+        return {
+          data:r.data, matricula:r.matricula, rz:r.rz, ul:r.ul,
+          instalacao:r.instalacao, medidor:r.medidor, ocorrencia:r.ocorrencia,
+          endereco:r.endereco, qtd_digitacao:r.qtd_digitacao,
+          responsabilidade:r.responsabilidade,
+          cidade:lb.cidade||null, base:lb.base||null,
+        };
+      });
+
+      // Deletar impedimentos das mesmas ULs e reinserir
+      const ulsImp=[...new Set(impsEnriq.map(r=>r.ul))];
+      for(const u of ulsImp) await sb.from('impedimentos').delete().eq('ul',u);
+
+      const LOTE2=200;
+      for(let i=0;i<impsEnriq.length;i+=LOTE2){
+        const {error}=await sb.from('impedimentos').insert(impsEnriq.slice(i,i+LOTE2));
+        if(error) throw error;
+      }
+      prog.textContent=`Jornada + ${impsEnriq.length} impedimentos salvos!`;
+    }
+
     prog.className='progresso ok';
-    prog.textContent=`\u2713 ${registros.length} registros de jornada salvos!`;
+    prog.textContent=`\u2713 ${registros.length} registros de jornada + ${impsParaSalvar.length} impedimentos salvos!`;
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
   btn.disabled=false;
 }
