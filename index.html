@@ -497,6 +497,7 @@ async function processarCemig(){
     });
 
     // Deletar APENAS as combinações mat+data que existem no arquivo novo
+    const chavesNovas=registros.map(r=>r.matricula+'|'+r.data);
     const idsParaDeletar=(existentes||[])
       .filter(e=>chavesNovas.includes(e.matricula+'|'+e.data))
       .map(e=>e.id);
