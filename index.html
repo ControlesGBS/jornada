@@ -432,6 +432,16 @@ async function processarCemig(){
     for(const sheetName of wb.SheetNames){
       const ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
+      // Ler mês de referência do cabeçalho (célula G12 = rows[11][6])
+      let mesRefImp = null;
+      for(let ri=0;ri<Math.min(20,rows.length);ri++){
+        for(let ci=0;ci<rows[ri].length;ci++){
+          const v=rows[ri][ci]!=null?String(rows[ri][ci]).trim():'';
+          const m=v.match(/^(\d{2})\/(\d{4})$/);
+          if(m){ mesRefImp=`${m[2]}-${m[1]}-01`; break; }
+        }
+        if(mesRefImp) break;
+      }
       let mat=null,ul=null,rz=null,lc=null,rota=null,emDados=false,ultimoImpedimento=null,ultimaInstalacao=null;
       for(const row of rows){
         const v0=row[0]!=null?String(row[0]).trim():'';
@@ -470,7 +480,7 @@ async function processarCemig(){
             grupos[chave].impedimentos.push({
               instalacao:v0, medidor, oc_str:String(oc),
               qtd_digitacao:qtdDig, responsabilidade:resp,
-              ul, rz, local_cod:lc, data:dataStr, matricula:mat,
+              ul, rz, local_cod:lc, data:mesRefImp||dataStr, matricula:mat,
               endereco:'',
             });
             ultimoImpedimento=grupos[chave].impedimentos[grupos[chave].impedimentos.length-1];
