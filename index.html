@@ -429,18 +429,20 @@ async function processarCemig(){
 
     // Agrupar leituras por mat+data no navegador
     const grupos={};
+    let mesRefImp = null; // mês de referência do cabeçalho (usado fora do loop)
     for(const sheetName of wb.SheetNames){
       const ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
-      // Ler mês de referência do cabeçalho (célula G12 = rows[11][6])
-      let mesRefImp = null;
-      for(let ri=0;ri<Math.min(20,rows.length);ri++){
-        for(let ci=0;ci<rows[ri].length;ci++){
-          const v=rows[ri][ci]!=null?String(rows[ri][ci]).trim():'';
-          const m=v.match(/^(\d{2})\/(\d{4})$/);
-          if(m){ mesRefImp=`${m[2]}-${m[1]}-01`; break; }
+      // Ler mês de referência do cabeçalho
+      if(!mesRefImp){
+        for(let ri=0;ri<Math.min(20,rows.length);ri++){
+          for(let ci=0;ci<rows[ri].length;ci++){
+            const v=rows[ri][ci]!=null?String(rows[ri][ci]).trim():'';
+            const m=v.match(/^(\d{2})\/(\d{4})$/);
+            if(m){ mesRefImp=`${m[2]}-${m[1]}-01`; break; }
+          }
+          if(mesRefImp) break;
         }
-        if(mesRefImp) break;
       }
       let mat=null,ul=null,rz=null,lc=null,rota=null,emDados=false,ultimoImpedimento=null,ultimaInstalacao=null;
       for(const row of rows){
@@ -609,32 +611,16 @@ async function processarCemig(){
       prog.textContent=`Jornada + ${impsEnriq.length} impedimentos salvos!`;
     }
 
-    // Salvar UL → leiturista (para cruzar com fotos)
+    // Salvar UL → leiturista usando dados já processados nos grupos
     if(mesRefImp){
       const ulLeitMap={};
-      for(const sheetName of wb.SheetNames){
-        const ws2=wb.Sheets[sheetName];
-        const rows2=XLSX.utils.sheet_to_json(ws2,{header:1,defval:null,raw:false});
-        let ulAtual=null, matAtual=null;
-        for(const row of rows2){
-          const v0=row[0]!=null?String(row[0]).trim():'';
-          // UL
-          const mUL=v0.match(/^Unidade de Leitura:\s*(\d{8})/);
-          if(mUL) ulAtual=mUL[1];
-          // Matrícula do leiturista
-          const v1=row[1]!=null?String(row[1]).trim():'';
-          if(v1.startsWith('Leiturista:')){
-            const mMat=v1.match(/Leiturista:\s*(\d+)/);
-            if(mMat) matAtual=mMat[1];
-          }
-          if(ulAtual&&matAtual) ulLeitMap[ulAtual]=matAtual;
-        }
-      }
+      Object.values(grupos).forEach(g=>{
+        if(g.ul && g.mat) ulLeitMap[g.ul]=g.mat;
+      });
       const ulLeitRecs=Object.entries(ulLeitMap).map(([ul,matricula])=>({
         mes_ref:mesRefImp, ul, rz:ul.slice(0,2), matricula
       }));
       if(ulLeitRecs.length){
-        // Deletar ULs do mesmo RZ e mes_ref
         const rzs=[...new Set(ulLeitRecs.map(r=>r.rz))];
         for(const rz of rzs) await sb.from('ul_leiturista').delete().eq('mes_ref',mesRefImp).eq('rz',rz);
         const LOTE3=500;
