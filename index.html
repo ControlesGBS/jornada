@@ -299,7 +299,7 @@ function renderTabela(){
     porData[d].linhas.push(r);
   });
 
-  let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0;
+  let totalLeit=0,totalLeitTrab=0,totalTrabMin=0,somaIni=0,diasTrab=0;
   const rows=[];
 
   for(let d=1;d<=diasMes;d++){
@@ -349,14 +349,14 @@ function renderTabela(){
     const impGbsDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_gbs||0),0);
     const impCemigDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_cemig||0),0);
     const totalImpDia=impGbsDia+impCemigDia;
-    // Mínimo 10 leituras para contar como dia trabalhado
+    // Todas as leituras contam no total
+    totalLeit+=totalLeitDia;
+    // Mínimo 10 leituras para contar como dia trabalhado (KPIs de jornada)
     if(totalLeitDia>=10){
-      totalLeit+=totalLeitDia;
+      totalLeitTrab+=totalLeitDia;
       totalTrabMin+=trab;
       somaIni+=toMin(hi);
       diasTrab++;
-    } else {
-      totalLeit+=totalLeitDia;
     }
 
     // Badges de rota+local
@@ -396,7 +396,7 @@ function renderTabela(){
 
   const mi=diasTrab>0?Math.round(somaIni/diasTrab):0;
   const mt=diasTrab>0?Math.round(totalTrabMin/diasTrab):0;
-  const ml=diasTrab>0?Math.round(totalLeit/diasTrab):0;
+  const ml=diasTrab>0?Math.round(totalLeitTrab/diasTrab):0;
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="kpi-label">Dias trabalhados</div><div class="kpi-value">${diasTrab}</div></div>
     <div class="kpi"><div class="kpi-label">Média horas trabalhadas</div><div class="kpi-value">${toHM(mt)}</div></div>
