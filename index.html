@@ -299,7 +299,7 @@ function renderTabela(){
     porData[d].linhas.push(r);
   });
 
-  let totalLeit=0,totalLeitTrab=0,totalTrabMin=0,somaIni=0,diasTrab=0;
+  let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0;
   const rows=[];
 
   for(let d=1;d<=diasMes;d++){
@@ -349,14 +349,14 @@ function renderTabela(){
     const impGbsDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_gbs||0),0);
     const impCemigDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_cemig||0),0);
     const totalImpDia=impGbsDia+impCemigDia;
-    // Todas as leituras contam no total
-    totalLeit+=totalLeitDia;
-    // Mínimo 10 leituras para contar como dia trabalhado (KPIs de jornada)
+    // Mínimo 10 leituras para contar como dia trabalhado
     if(totalLeitDia>=10){
-      totalLeitTrab+=totalLeitDia;
+      totalLeit+=totalLeitDia;
       totalTrabMin+=trab;
       somaIni+=toMin(hi);
       diasTrab++;
+    } else {
+      totalLeit+=totalLeitDia;
     }
 
     // Badges de rota+local
@@ -396,7 +396,7 @@ function renderTabela(){
 
   const mi=diasTrab>0?Math.round(somaIni/diasTrab):0;
   const mt=diasTrab>0?Math.round(totalTrabMin/diasTrab):0;
-  const ml=diasTrab>0?Math.round(totalLeitTrab/diasTrab):0;
+  const ml=diasTrab>0?Math.round(totalLeit/diasTrab):0;
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="kpi-label">Dias trabalhados</div><div class="kpi-value">${diasTrab}</div></div>
     <div class="kpi"><div class="kpi-label">Média horas trabalhadas</div><div class="kpi-value">${toHM(mt)}</div></div>
@@ -429,6 +429,7 @@ async function processarCemig(){
 
     // Agrupar leituras por mat+data no navegador
     const grupos={};
+    const totaisRzMes={}; // { 'mes_ref|rz': count }
     for(const sheetName of wb.SheetNames){
       const ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
@@ -469,6 +470,11 @@ async function processarCemig(){
           grupos[chave].horas.push(hora);
           grupos[chave].rzs.push(rz);
           grupos[chave].lc_rotas.push(`${rota}|${lc}`);
+          // Contar leitura no total do RZ+mês (usa mês do cabeçalho)
+          if(mesRefImp && rz){
+            const chaveRzMes=`${mesRefImp.slice(0,7)}|${rz}`;
+            totaisRzMes[chaveRzMes]=(totaisRzMes[chaveRzMes]||0)+1;
+          }
           // Impedimentos: OC > 1999 — salvar para tabela de impedimentos
           const OC_CEMIG=new Set([3311,3376,3804,3894,3895,3901,3902,3903,3904,3905,3906,3907,3908,5109,5802,6820,6824,6872,7000]);
           if(oc>1999){
@@ -610,6 +616,12 @@ async function processarCemig(){
     }
 
     prog.className='progresso ok';
+    // Salvar totais por RZ+mês na tabela totais_rz
+    for(const [chave, total] of Object.entries(totaisRzMes)){
+      const [mesKey, rzKey] = chave.split('|');
+      const mes_ref = mesKey+'-01';
+      await sb.from('totais_rz').upsert({mes_ref, rz:rzKey, total_leituras:total},{onConflict:'mes_ref,rz'});
+    }
     prog.textContent=`\u2713 ${registros.length} registros de jornada + ${impsParaSalvar.length} impedimentos salvos!`;
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
   btn.disabled=false;
