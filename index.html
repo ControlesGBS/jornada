@@ -429,7 +429,6 @@ async function processarCemig(){
 
     // Agrupar leituras por mat+data no navegador
     const grupos={};
-    const totaisRzMes={}; // { 'mes_ref|rz': count }
     for(const sheetName of wb.SheetNames){
       const ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
@@ -470,11 +469,6 @@ async function processarCemig(){
           grupos[chave].horas.push(hora);
           grupos[chave].rzs.push(rz);
           grupos[chave].lc_rotas.push(`${rota}|${lc}`);
-          // Contar leitura no total do RZ+mês (usa mês do cabeçalho)
-          if(mesRefImp && rz){
-            const chaveRzMes=`${mesRefImp.slice(0,7)}|${rz}`;
-            totaisRzMes[chaveRzMes]=(totaisRzMes[chaveRzMes]||0)+1;
-          }
           // Impedimentos: OC > 1999 — salvar para tabela de impedimentos
           const OC_CEMIG=new Set([3311,3376,3804,3894,3895,3901,3902,3903,3904,3905,3906,3907,3908,5109,5802,6820,6824,6872,7000]);
           if(oc>1999){
@@ -615,13 +609,41 @@ async function processarCemig(){
       prog.textContent=`Jornada + ${impsEnriq.length} impedimentos salvos!`;
     }
 
-    prog.className='progresso ok';
-    // Salvar totais por RZ+mês na tabela totais_rz
-    for(const [chave, total] of Object.entries(totaisRzMes)){
-      const [mesKey, rzKey] = chave.split('|');
-      const mes_ref = mesKey+'-01';
-      await sb.from('totais_rz').upsert({mes_ref, rz:rzKey, total_leituras:total},{onConflict:'mes_ref,rz'});
+    // Salvar UL → leiturista (para cruzar com fotos)
+    if(mesRefImp){
+      const ulLeitMap={};
+      for(const sheetName of wb.SheetNames){
+        const ws2=wb.Sheets[sheetName];
+        const rows2=XLSX.utils.sheet_to_json(ws2,{header:1,defval:null,raw:false});
+        let ulAtual=null, matAtual=null;
+        for(const row of rows2){
+          const v0=row[0]!=null?String(row[0]).trim():'';
+          // UL
+          const mUL=v0.match(/^Unidade de Leitura:\s*(\d{8})/);
+          if(mUL) ulAtual=mUL[1];
+          // Matrícula do leiturista
+          const v1=row[1]!=null?String(row[1]).trim():'';
+          if(v1.startsWith('Leiturista:')){
+            const mMat=v1.match(/Leiturista:\s*(\d+)/);
+            if(mMat) matAtual=mMat[1];
+          }
+          if(ulAtual&&matAtual) ulLeitMap[ulAtual]=matAtual;
+        }
+      }
+      const ulLeitRecs=Object.entries(ulLeitMap).map(([ul,matricula])=>({
+        mes_ref:mesRefImp, ul, rz:ul.slice(0,2), matricula
+      }));
+      if(ulLeitRecs.length){
+        // Deletar ULs do mesmo RZ e mes_ref
+        const rzs=[...new Set(ulLeitRecs.map(r=>r.rz))];
+        for(const rz of rzs) await sb.from('ul_leiturista').delete().eq('mes_ref',mesRefImp).eq('rz',rz);
+        const LOTE3=500;
+        for(let i=0;i<ulLeitRecs.length;i+=LOTE3)
+          await sb.from('ul_leiturista').upsert(ulLeitRecs.slice(i,i+LOTE3),{onConflict:'mes_ref,ul'});
+      }
     }
+
+    prog.className='progresso ok';
     prog.textContent=`\u2713 ${registros.length} registros de jornada + ${impsParaSalvar.length} impedimentos salvos!`;
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
   btn.disabled=false;
