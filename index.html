@@ -48,6 +48,18 @@ td.rota-col{text-align:left;font-size:11px}
 .totais span{color:#4a7a4a;font-weight:400;margin-right:3px}
 .status-msg{padding:20px;text-align:center;color:#4a7a4a;font-size:13px}
 .admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;max-width:900px}
+.card-cemig-wrap{display:flex;gap:12px;align-items:flex-start}
+.card-cemig-wrap .card{flex:1;min-width:0}
+.log-uploads{background:#fff;border:0.5px solid #c0dcc0;border-radius:10px;padding:14px;width:220px;flex-shrink:0}
+.log-uploads h4{font-size:12px;font-weight:500;color:#1a4a1a;margin-bottom:8px}
+.log-scroll{max-height:220px;overflow-y:auto;font-size:11px}
+.log-scroll::-webkit-scrollbar{width:4px}
+.log-scroll::-webkit-scrollbar-thumb{background:#a0c8a0;border-radius:2px}
+.log-item{padding:4px 0;border-bottom:0.5px solid #e8f4e8;color:#1a2a1a;line-height:1.4}
+.log-item:last-child{border-bottom:none}
+.log-item .log-nome{font-weight:500;word-break:break-all}
+.log-item .log-dt{color:#4a7a4a;font-size:10px}
+.log-vazio{color:#4a7a4a;font-size:11px;font-style:italic}
 .card{background:#fff;border:0.5px solid #c0dcc0;border-radius:10px;padding:20px}
 .card h3{font-size:14px;font-weight:500;color:#1a4a1a;margin-bottom:4px}
 .card p{font-size:12px;color:#4a7a4a;margin-bottom:14px;line-height:1.5}
@@ -132,19 +144,27 @@ td.rota-col{text-align:left;font-size:11px}
 <!-- ADMIN -->
 <div class="pag" id="pag-admin">
   <div class="admin-grid">
-    <div class="card">
-      <h3>Upload — arquivo cru da Cemig</h3>
-      <p>Sobe o xlsx da Cemig (um RZ por arquivo). O sistema processa no navegador e alimenta <strong>todos os relatórios</strong> — jornada, impedimentos, transmissões. Se aquele RZ+período já existir, substitui.</p>
-      <label class="upload-area">
-        <input type="file" accept=".xlsx" id="inp-cemig" onchange="selecionarCemig(this)">
-        <div class="icone">&#8593;</div>
-        <p>Clique ou arraste o arquivo xlsx</p>
-      </label>
-      <div id="tag-cemig"></div>
-      <div style="margin-top:12px">
-        <button class="btn btn-verde" id="btn-cemig" onclick="processarCemig()" disabled>Processar e salvar</button>
+    <div class="card-cemig-wrap" style="grid-column:1/2">
+      <div class="card">
+        <h3>Upload — arquivo cru da Cemig</h3>
+        <p>Sobe o xlsx da Cemig (um RZ por arquivo). O sistema processa no navegador e alimenta <strong>todos os relatórios</strong> — jornada, impedimentos, transmissões. Se aquele RZ+período já existir, substitui.</p>
+        <label class="upload-area">
+          <input type="file" accept=".xlsx" id="inp-cemig" onchange="selecionarCemig(this)">
+          <div class="icone">&#8593;</div>
+          <p>Clique ou arraste o arquivo xlsx</p>
+        </label>
+        <div id="tag-cemig"></div>
+        <div style="margin-top:12px">
+          <button class="btn btn-verde" id="btn-cemig" onclick="processarCemig()" disabled>Processar e salvar</button>
+        </div>
+        <div class="progresso" id="prog-cemig"></div>
       </div>
-      <div class="progresso" id="prog-cemig"></div>
+      <div class="log-uploads">
+        <h4>Últimos uploads</h4>
+        <div class="log-scroll" id="log-uploads-lista">
+          <span class="log-vazio">Nenhum upload ainda.</span>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -194,6 +214,7 @@ function irPara(id,btn){
     const s=prompt('Senha de administração:');
     if(s!=='Batman1'){if(s!==null)alert('Senha incorreta.');return;}
     carregarInfoAdmin();
+    renderizarLog();
   }
   document.querySelectorAll('.pag').forEach(p=>p.classList.remove('ativo'));
   document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('ativo'));
@@ -631,6 +652,7 @@ async function processarCemig(){
 
     prog.className='progresso ok';
     prog.textContent=`\u2713 ${registros.length} registros de jornada + ${impsParaSalvar.length} impedimentos salvos!`;
+    registrarUpload(fileCemig.name);
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
   btn.disabled=false;
 }
@@ -688,6 +710,28 @@ async function processarLocal(){
     prog.className='progresso ok'; prog.textContent=`\u2713 ${recs.length} locais salvos!`;
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;}
   btn.disabled=false;
+}
+
+// ── LOG DE UPLOADS (localStorage) ────────────────────────────────
+function registrarUpload(nomeArquivo){
+  const LOG_KEY='gbs_upload_log';
+  const agora=new Date();
+  const dt=agora.toLocaleDateString('pt-BR')+' '+agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  let lista=[];
+  try{lista=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');}catch(e){}
+  lista.unshift({nome:nomeArquivo,dt});
+  if(lista.length>30) lista=lista.slice(0,30);
+  localStorage.setItem(LOG_KEY,JSON.stringify(lista));
+  renderizarLog();
+}
+function renderizarLog(){
+  const LOG_KEY='gbs_upload_log';
+  const el=document.getElementById('log-uploads-lista');
+  if(!el) return;
+  let lista=[];
+  try{lista=JSON.parse(localStorage.getItem(LOG_KEY)||'[]');}catch(e){}
+  if(!lista.length){el.innerHTML='<span class="log-vazio">Nenhum upload ainda.</span>';return;}
+  el.innerHTML=lista.map(i=>`<div class="log-item"><div class="log-nome">${i.nome}</div><div class="log-dt">${i.dt}</div></div>`).join('');
 }
 
 async function carregarInfoAdmin(){
