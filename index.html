@@ -341,7 +341,6 @@ async function iniciarFiltros(){
     const val=`${mm}/${d.getFullYear()}`;
     sel.innerHTML+=`<option value="${val}">${val}</option>`;
   }
-  // Popular meses nas novas abas também
   ['rk-mes','ai-mes','mt-mes'].forEach(id=>{
     const s=document.getElementById(id);
     for(let i=0;i<12;i++){
@@ -351,7 +350,7 @@ async function iniciarFiltros(){
       s.innerHTML+=`<option value="${val}">${val}</option>`;
     }
   });
-  // Popular select de horários — 07:30 até 15:00 de 30 em 30 min
+  // Popular select de horários
   const selHora=document.getElementById('ai-hora');
   for(let m=450;m<=900;m+=30){
     const hh=String(Math.floor(m/60)).padStart(2,'0');
@@ -361,23 +360,24 @@ async function iniciarFiltros(){
     if(m===540) opt.selected=true;
     selHora.appendChild(opt);
   }
-  const {data}=await sb.from('matriculas').select('base').order('base');
-  const bases=[...new Set((data||[]).map(r=>r.base).filter(Boolean))];
-  const selB=document.getElementById('f-base');
-  bases.forEach(b=>selB.innerHTML+=`<option value="${b}">${b}</option>`);
-  // Popular bases nas novas abas
-  ['rk-base','ai-base','mt-base'].forEach(id=>{
-    const s=document.getElementById(id);
-    bases.forEach(b=>s.innerHTML+=`<option value="${b}">${b}</option>`);
-  });
-  // Carregar mapa de locais uma vez
+  // Popular bases (só se gestor sem restrição)
+  if(!PERFIL_BASE){
+    const {data}=await sb.from('matriculas').select('base').order('base');
+    const bases=[...new Set((data||[]).map(r=>r.base).filter(Boolean))];
+    const selB=document.getElementById('f-base');
+    bases.forEach(b=>selB.innerHTML+=`<option value="${b}">${b}</option>`);
+    ['rk-base','ai-base','mt-base'].forEach(id=>{
+      const s=document.getElementById(id);
+      bases.forEach(b=>s.innerHTML+=`<option value="${b}">${b}</option>`);
+    });
+  }
   const {data:ld}=await sb.from('local_base').select('local,cidade');
   (ld||[]).forEach(r=>localMap[r.local]=r.cidade);
   await carregarMatriculas();
 }
 
 async function carregarMatriculas(){
-  const base=document.getElementById('f-base').value;
+  const base=PERFIL_BASE||document.getElementById('f-base').value;
   let q=sb.from('matriculas').select('matricula,nome_leiturista').eq('situacao','Ativo').order('nome_leiturista');
   if(base) q=q.eq('base',base);
   const {data}=await q;
@@ -859,7 +859,8 @@ async function carregarRanking(){
   document.getElementById('rk-urb-body').innerHTML='<tr><td colspan="2" class="vazio-msg">Carregando...</td></tr>';
   document.getElementById('rk-rur-body').innerHTML='<tr><td colspan="2" class="vazio-msg">Carregando...</td></tr>';
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
-  if(base) qMat=qMat.eq('base',base);
+  const baseRk=PERFIL_BASE||base;
+  if(baseRk) qMat=qMat.eq('base',baseRk);
   const {data:mats}=await qMat;
   const matMap={};
   (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista,base:r.base});
@@ -908,7 +909,8 @@ async function carregarAlertaInicio(){
   const aiBody=document.getElementById('ai-body');
   aiBody.innerHTML='<div class="vazio-msg">Carregando...</div>';
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
-  if(base) qMat=qMat.eq('base',base);
+  const baseAi=PERFIL_BASE||base;
+  if(baseAi) qMat=qMat.eq('base',baseAi);
   const {data:mats}=await qMat;
   const matMap2={};
   (mats||[]).forEach(r=>matMap2[r.matricula]={nome:r.nome_leiturista});
@@ -959,7 +961,8 @@ async function carregarMeta(){
   document.getElementById('mt-urb-body').innerHTML='<div class="vazio-msg">Carregando...</div>';
   document.getElementById('mt-rur-body').innerHTML='<div class="vazio-msg">Carregando...</div>';
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
-  if(base) qMat=qMat.eq('base',base);
+  const baseMt=PERFIL_BASE||base;
+  if(baseMt) qMat=qMat.eq('base',baseMt);
   const {data:mats}=await qMat;
   const matMap3={};
   (mats||[]).forEach(r=>matMap3[r.matricula]={nome:r.nome_leiturista});
@@ -1035,11 +1038,59 @@ async function carregarInfoAdmin(){
   document.getElementById('qtd-locais').textContent=count||'—';
 }
 
+// ── PERFIL DO USUÁRIO ─────────────────────────────────────────────
+let PERFIL_BASE=null; // base do usuário logado (null = gestor, vê tudo)
+let PERFIL_TIPO=null; // 'gestor' | 'supervisor' | 'auxiliar'
+
 // ── INIT ─────────────────────────────────────────────────────────
 (async()=>{
   const {data:{user}}=await sb.auth.getUser();
   if(!user){location.href='login.html';return;}
-  document.getElementById('user-info').textContent=user.email;
+
+  // Buscar perfil na tabela usuarios_portal
+  const {data:up}=await sb.from('usuarios_portal')
+    .select('nome,perfil,base,ativo').eq('id',user.id).single();
+
+  if(up&&up.ativo){
+    PERFIL_TIPO=up.perfil;
+    PERFIL_BASE=up.base||null; // null = sem restrição
+    document.getElementById('user-info').textContent=up.nome||user.email;
+  } else {
+    // fallback: usa email, sem restrição (gestor)
+    document.getElementById('user-info').textContent=user.email;
+    PERFIL_TIPO='gestor';
+    PERFIL_BASE=null;
+  }
+
+  // Se supervisor com base definida: ocultar select de base, travar no valor
+  if(PERFIL_BASE){
+    // Painel
+    const selBase=document.getElementById('f-base');
+    if(selBase){
+      selBase.innerHTML=`<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
+      selBase.value=PERFIL_BASE;
+      selBase.disabled=true;
+      selBase.closest('div').style.display='none'; // esconde do sidebar
+    }
+    // Outras abas — esconde e trava
+    ['rk-base','ai-base','mt-base'].forEach(id=>{
+      const s=document.getElementById(id);
+      if(s){
+        s.innerHTML=`<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
+        s.value=PERFIL_BASE;
+        s.disabled=true;
+        s.closest('div').style.display='none';
+      }
+    });
+  }
+
+  // Esconder aba Admin se não for gestor
+  if(PERFIL_TIPO!=='gestor'){
+    document.querySelectorAll('.nav button').forEach(btn=>{
+      if(btn.textContent.trim()==='Administração') btn.style.display='none';
+    });
+  }
+
   await iniciarFiltros();
 })();
 </script>
