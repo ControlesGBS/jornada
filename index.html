@@ -25,13 +25,13 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .slicer-box label{color:#4a7a4a;font-size:11px;white-space:nowrap;margin:0}
 .slicer-box span{color:#1a4a1a;font-size:13px;font-weight:500;min-width:40px}
 .slicer-box input[type=range]{height:20px;width:80px;accent-color:#2d7a2d}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:10px}
 .kpi{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:10px 14px;text-align:center}
 .kpi-label{font-size:10px;color:#4a7a4a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
 .kpi-value{font-size:22px;font-weight:500;color:#1a4a1a}
 .twrap{border-radius:8px;border:0.5px solid #c0dcc0;overflow-x:auto;background:#fff}
-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
-thead th{background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:11px;white-space:nowrap;border-right:0.5px solid #2d6a2d}
+table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+thead th{background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:7px 8px;text-align:center;font-size:12px;white-space:nowrap;border-right:0.5px solid #2d6a2d}
 tbody tr:nth-child(even){background:#f8fbf8}
 tbody tr.sem-trab td{color:#aaa}
 tbody td{color:#1a2a1a}
@@ -320,7 +320,7 @@ function renderTabela(){
     porData[d].linhas.push(r);
   });
 
-  let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0;
+  let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0,totalImpGbs=0;
   const rows=[];
 
   for(let d=1;d<=diasMes;d++){
@@ -376,6 +376,7 @@ function renderTabela(){
       totalTrabMin+=trab;
       somaIni+=toMin(hi);
       diasTrab++;
+      totalImpGbs+=impGbsDia;
     } else {
       totalLeit+=totalLeitDia;
     }
@@ -422,7 +423,9 @@ function renderTabela(){
     <div class="kpi"><div class="kpi-label">Dias trabalhados</div><div class="kpi-value">${diasTrab}</div></div>
     <div class="kpi"><div class="kpi-label">Média horas trabalhadas</div><div class="kpi-value">${toHM(mt)}</div></div>
     <div class="kpi"><div class="kpi-label">Média início trabalho</div><div class="kpi-value">${toHM(mi)}</div></div>
-    <div class="kpi"><div class="kpi-label">Média de leituras</div><div class="kpi-value">${ml}</div></div>`;
+    <div class="kpi"><div class="kpi-label">Média de leituras</div><div class="kpi-value">${ml}</div></div>
+    <div class="kpi"><div class="kpi-label">Total de leituras</div><div class="kpi-value">${totalLeit.toLocaleString('pt-BR')}</div></div>
+    <div class="kpi"><div class="kpi-label">Impedimentos GBS</div><div class="kpi-value">${totalImpGbs.toLocaleString('pt-BR')}</div></div>`;
   document.getElementById('totais').innerHTML=`
     <div><span>Total leituras:</span>${totalLeit.toLocaleString('pt-BR')}</div>
     <div><span>Total horas trabalhadas:</span>${toHM(totalTrabMin)}</div>
