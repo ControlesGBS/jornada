@@ -76,6 +76,41 @@ td.rota-col{text-align:left;font-size:11px}
 .progresso.erro{color:#a32d2d}
 .progresso.ok{color:#2d7a2d}
 .tag-arquivo{display:inline-flex;align-items:center;gap:6px;background:#f0f8f0;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 10px;font-size:12px;color:#1a4a1a;margin-top:8px}
+.rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.rank-box{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;overflow:hidden}
+.rank-box-title{background:#1a4a1a;color:#c0e8c0;padding:8px 14px;font-size:12px;font-weight:500}
+.rank-table{width:100%;border-collapse:collapse;font-size:12px}
+.rank-table thead th{background:#2d5a2d;color:#c0e8c0;padding:6px 10px;text-align:left;font-size:11px;font-weight:500}
+.rank-table thead th:last-child{text-align:right}
+.rank-table tbody td{padding:6px 10px;border-bottom:0.5px solid #e8f4e8;color:#1a2a1a}
+.rank-table tbody td:last-child{text-align:right;font-weight:500}
+.rank-table tbody tr:nth-child(even){background:#f8fbf8}
+.rank-num{color:#4a7a4a;font-size:11px;width:24px;display:inline-block}
+.rank-top{color:#1a4a1a;font-weight:500}
+.filtros-rank{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:12px 16px;margin-bottom:12px}
+.filtros-rank label{font-size:11px;color:#4a7a4a;display:block;margin-bottom:3px}
+.filtros-rank select{border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px}
+.alerta-lista{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;overflow:hidden;margin-top:12px}
+.alerta-lista-title{background:#1a4a1a;color:#c0e8c0;padding:8px 14px;font-size:12px;font-weight:500}
+.alerta-item-row{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:0.5px solid #e8f4e8;font-size:12px}
+.alerta-item-row:last-child{border-bottom:none}
+.alerta-item-row.par{background:#f8fbf8}
+.alerta-mat{font-weight:500;color:#1a4a1a;min-width:200px}
+.alerta-hora{color:#a32d2d;font-weight:500;min-width:60px}
+.alerta-bar-wrap{flex:1;background:#f0f4f0;border-radius:3px;height:8px;overflow:hidden}
+.alerta-bar{height:100%;border-radius:3px;background:#e24b4a}
+.meta-box{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;overflow:hidden;margin-top:12px}
+.meta-box-title{background:#1a4a1a;color:#c0e8c0;padding:8px 14px;font-size:12px;font-weight:500}
+.meta-row{display:flex;align-items:center;gap:10px;padding:7px 14px;border-bottom:0.5px solid #e8f4e8;font-size:12px}
+.meta-row:last-child{border-bottom:none}
+.meta-row.par{background:#f8fbf8}
+.meta-mat{font-weight:500;color:#1a4a1a;min-width:200px}
+.meta-val{color:#a32d2d;font-weight:500;min-width:50px;text-align:right}
+.meta-ref{color:#4a7a4a;font-size:11px}
+.input-meta{border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px;width:90px}
+.badge-urb{background:#e6f1fb;color:#0c447c;display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:500}
+.badge-rur{background:#eaf3de;color:#27500a;display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:500}
+.vazio-msg{padding:16px 14px;color:#4a7a4a;font-size:12px;font-style:italic}
 </style>
 </head>
 <body>
@@ -89,6 +124,9 @@ td.rota-col{text-align:left;font-size:11px}
 
 <div class="nav">
   <button class="ativo" onclick="irPara('painel',this)">Painel de jornada</button>
+  <button onclick="irPara('ranking',this)">Ranking de leituras</button>
+  <button onclick="irPara('alerta-inicio',this)">Alerta de início</button>
+  <button onclick="irPara('meta',this)">Meta de leituras</button>
   <button onclick="irPara('admin',this)">Administração</button>
 </div>
 
@@ -138,6 +176,73 @@ td.rota-col{text-align:left;font-size:11px}
         </div>
       </td></tr></tfoot>
     </table>
+  </div>
+</div>
+
+<!-- RANKING -->
+<div class="pag" id="pag-ranking">
+  <div class="filtros-rank">
+    <div><label>Mês/Ano</label><select id="rk-mes" onchange="carregarRanking()"></select></div>
+    <div><label>Base</label><select id="rk-base" onchange="carregarRanking()"><option value="">Todas as bases</option></select></div>
+  </div>
+  <div class="rank-grid">
+    <div class="rank-box">
+      <div class="rank-box-title">Ranking urbano (rotas 01–88)</div>
+      <table class="rank-table">
+        <thead><tr><th>#&nbsp;&nbsp;Leiturista</th><th>Total leituras</th></tr></thead>
+        <tbody id="rk-urb-body"><tr><td colspan="2" class="vazio-msg">Selecione o mês</td></tr></tbody>
+      </table>
+    </div>
+    <div class="rank-box">
+      <div class="rank-box-title">Ranking rural (rotas 89–99)</div>
+      <table class="rank-table">
+        <thead><tr><th>#&nbsp;&nbsp;Leiturista</th><th>Total leituras</th></tr></thead>
+        <tbody id="rk-rur-body"><tr><td colspan="2" class="vazio-msg">Selecione o mês</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ALERTA DE INÍCIO -->
+<div class="pag" id="pag-alerta-inicio">
+  <div class="filtros-rank">
+    <div><label>Mês/Ano</label><select id="ai-mes" onchange="carregarAlertaInicio()"></select></div>
+    <div><label>Base</label><select id="ai-base" onchange="carregarAlertaInicio()"><option value="">Todas as bases</option></select></div>
+    <div>
+      <label>Início tardio a partir de</label>
+      <select id="ai-hora" onchange="carregarAlertaInicio()"></select>
+    </div>
+  </div>
+  <div id="ai-resumo" style="font-size:12px;color:#4a7a4a;margin-bottom:4px"></div>
+  <div class="alerta-lista">
+    <div class="alerta-lista-title">Leituristas com média de início acima do limite</div>
+    <div id="ai-body"><div class="vazio-msg">Selecione o mês</div></div>
+  </div>
+</div>
+
+<!-- META DE LEITURAS -->
+<div class="pag" id="pag-meta">
+  <div class="filtros-rank">
+    <div><label>Mês/Ano</label><select id="mt-mes" onchange="carregarMeta()"></select></div>
+    <div><label>Base</label><select id="mt-base" onchange="carregarMeta()"><option value="">Todas as bases</option></select></div>
+    <div>
+      <label>Meta diária urbano</label>
+      <input class="input-meta" type="number" id="mt-meta-urb" value="100" min="1" onchange="carregarMeta()">
+    </div>
+    <div>
+      <label>Meta diária rural</label>
+      <input class="input-meta" type="number" id="mt-meta-rur" value="60" min="1" onchange="carregarMeta()">
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="meta-box">
+      <div class="meta-box-title">Leituristas urbanos abaixo da meta</div>
+      <div id="mt-urb-body"><div class="vazio-msg">Selecione o mês</div></div>
+    </div>
+    <div class="meta-box">
+      <div class="meta-box-title">Leituristas rurais abaixo da meta</div>
+      <div id="mt-rur-body"><div class="vazio-msg">Selecione o mês</div></div>
+    </div>
   </div>
 </div>
 
@@ -220,6 +325,9 @@ function irPara(id,btn){
   document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('ativo'));
   document.getElementById('pag-'+id).classList.add('ativo');
   btn.classList.add('ativo');
+  if(id==='ranking') carregarRanking();
+  if(id==='alerta-inicio') carregarAlertaInicio();
+  if(id==='meta') carregarMeta();
 }
 async function sair(){ await sb.auth.signOut(); location.reload(); }
 
@@ -233,10 +341,35 @@ async function iniciarFiltros(){
     const val=`${mm}/${d.getFullYear()}`;
     sel.innerHTML+=`<option value="${val}">${val}</option>`;
   }
+  // Popular meses nas novas abas também
+  ['rk-mes','ai-mes','mt-mes'].forEach(id=>{
+    const s=document.getElementById(id);
+    for(let i=0;i<12;i++){
+      const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+      const mm=String(d.getMonth()+1).padStart(2,'0');
+      const val=`${mm}/${d.getFullYear()}`;
+      s.innerHTML+=`<option value="${val}">${val}</option>`;
+    }
+  });
+  // Popular select de horários — 07:30 até 15:00 de 30 em 30 min
+  const selHora=document.getElementById('ai-hora');
+  for(let m=450;m<=900;m+=30){
+    const hh=String(Math.floor(m/60)).padStart(2,'0');
+    const mi=String(m%60).padStart(2,'0');
+    const opt=document.createElement('option');
+    opt.value=m; opt.textContent=`${hh}:${mi}`;
+    if(m===540) opt.selected=true;
+    selHora.appendChild(opt);
+  }
   const {data}=await sb.from('matriculas').select('base').order('base');
   const bases=[...new Set((data||[]).map(r=>r.base).filter(Boolean))];
   const selB=document.getElementById('f-base');
   bases.forEach(b=>selB.innerHTML+=`<option value="${b}">${b}</option>`);
+  // Popular bases nas novas abas
+  ['rk-base','ai-base','mt-base'].forEach(id=>{
+    const s=document.getElementById(id);
+    bases.forEach(b=>s.innerHTML+=`<option value="${b}">${b}</option>`);
+  });
   // Carregar mapa de locais uma vez
   const {data:ld}=await sb.from('local_base').select('local,cidade');
   (ld||[]).forEach(r=>localMap[r.local]=r.cidade);
@@ -713,6 +846,166 @@ async function processarLocal(){
     prog.className='progresso ok'; prog.textContent=`\u2713 ${recs.length} locais salvos!`;
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;}
   btn.disabled=false;
+}
+
+// ── RANKING ──────────────────────────────────────────────────────
+async function carregarRanking(){
+  const mes=document.getElementById('rk-mes').value;
+  const base=document.getElementById('rk-base').value;
+  if(!mes) return;
+  const [mm,aa]=mes.split('/');
+  const di=`${aa}-${mm}-01`;
+  const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  document.getElementById('rk-urb-body').innerHTML='<tr><td colspan="2" class="vazio-msg">Carregando...</td></tr>';
+  document.getElementById('rk-rur-body').innerHTML='<tr><td colspan="2" class="vazio-msg">Carregando...</td></tr>';
+  let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
+  if(base) qMat=qMat.eq('base',base);
+  const {data:mats}=await qMat;
+  const matMap={};
+  (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista,base:r.base});
+  const matsIds=Object.keys(matMap);
+  if(!matsIds.length){
+    document.getElementById('rk-urb-body').innerHTML='<tr><td colspan="2" class="vazio-msg">Nenhum leiturista encontrado.</td></tr>';
+    document.getElementById('rk-rur-body').innerHTML='<tr><td colspan="2" class="vazio-msg">Nenhum leiturista encontrado.</td></tr>';
+    return;
+  }
+  const {data:jornada}=await sb.from('jornada')
+    .select('matricula,rz,qtd_leituras')
+    .in('matricula',matsIds).gte('data',di).lte('data',df);
+  const acum={};
+  (jornada||[]).forEach(row=>{
+    const mat=row.matricula;
+    if(!acum[mat]) acum[mat]={urb:0,rur:0};
+    const n=parseInt(String(row.rz||'').split('.')[0]);
+    const leit=row.qtd_leituras||0;
+    if(n>=1&&n<=88) acum[mat].urb+=leit;
+    else if(n>=89&&n<=99) acum[mat].rur+=leit;
+  });
+  const rankUrb=Object.entries(acum).filter(([,v])=>v.urb>0).sort((a,b)=>b[1].urb-a[1].urb);
+  const rankRur=Object.entries(acum).filter(([,v])=>v.rur>0).sort((a,b)=>b[1].rur-a[1].rur);
+  function renderRankTable(tbodyId,rank,campo){
+    const tbody=document.getElementById(tbodyId);
+    if(!rank.length){tbody.innerHTML='<tr><td colspan="2" class="vazio-msg">Nenhum dado no período.</td></tr>';return;}
+    tbody.innerHTML=rank.map(([mat,v],i)=>{
+      const info=matMap[mat]||{nome:mat};
+      const dest=i===0?'style="color:#1a4a1a;font-weight:500"':'';
+      return `<tr><td><span class="rank-num">${i+1}.</span> <span ${dest}>${mat} \u2014 ${info.nome}</span></td><td>${(campo==='urb'?v.urb:v.rur).toLocaleString('pt-BR')}</td></tr>`;
+    }).join('');
+  }
+  renderRankTable('rk-urb-body',rankUrb,'urb');
+  renderRankTable('rk-rur-body',rankRur,'rur');
+}
+
+// ── ALERTA DE INÍCIO ──────────────────────────────────────────────
+async function carregarAlertaInicio(){
+  const mes=document.getElementById('ai-mes').value;
+  const base=document.getElementById('ai-base').value;
+  const limHora=parseInt(document.getElementById('ai-hora').value)||540;
+  if(!mes) return;
+  const [mm,aa]=mes.split('/');
+  const di=`${aa}-${mm}-01`;
+  const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  const aiBody=document.getElementById('ai-body');
+  aiBody.innerHTML='<div class="vazio-msg">Carregando...</div>';
+  let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
+  if(base) qMat=qMat.eq('base',base);
+  const {data:mats}=await qMat;
+  const matMap2={};
+  (mats||[]).forEach(r=>matMap2[r.matricula]={nome:r.nome_leiturista});
+  const matsIds=Object.keys(matMap2);
+  if(!matsIds.length){aiBody.innerHTML='<div class="vazio-msg">Nenhum leiturista encontrado.</div>';return;}
+  const {data:jornada}=await sb.from('jornada')
+    .select('matricula,hora_inicial,qtd_leituras')
+    .in('matricula',matsIds).gte('data',di).lte('data',df);
+  const soma={};
+  (jornada||[]).forEach(row=>{
+    if((row.qtd_leituras||0)<10) return;
+    const mat=row.matricula;
+    if(!soma[mat]) soma[mat]={total:0,dias:0};
+    soma[mat].total+=toMin(row.hora_inicial||'00:00');
+    soma[mat].dias++;
+  });
+  const resultado=Object.entries(soma)
+    .map(([mat,v])=>({mat,media:Math.round(v.total/v.dias),dias:v.dias}))
+    .filter(r=>r.media>limHora)
+    .sort((a,b)=>b.media-a.media);
+  document.getElementById('ai-resumo').textContent=resultado.length
+    ?`${resultado.length} leiturista(s) com m\u00e9dia de in\u00edcio ap\u00f3s ${toHM(limHora)}`
+    :`Nenhum leiturista com in\u00edcio tardio ap\u00f3s ${toHM(limHora)}`;
+  if(!resultado.length){aiBody.innerHTML='<div class="vazio-msg">Nenhum leiturista com in\u00edcio tardio no per\u00edodo.</div>';return;}
+  const maxMin=resultado[0].media;
+  aiBody.innerHTML=resultado.map((r,i)=>{
+    const info=matMap2[r.mat]||{nome:r.mat};
+    const pct=Math.round((r.media/maxMin)*100);
+    return `<div class="alerta-item-row ${i%2===1?'par':''}">
+      <div class="alerta-mat">${r.mat} \u2014 ${info.nome}</div>
+      <div class="alerta-hora">${toHM(r.media)}</div>
+      <div class="alerta-bar-wrap"><div class="alerta-bar" style="width:${pct}%"></div></div>
+      <div style="font-size:11px;color:#4a7a4a;min-width:60px;text-align:right">${r.dias} dia(s)</div>
+    </div>`;
+  }).join('');
+}
+
+// ── META DE LEITURAS ──────────────────────────────────────────────
+async function carregarMeta(){
+  const mes=document.getElementById('mt-mes').value;
+  const base=document.getElementById('mt-base').value;
+  const metaUrb=parseInt(document.getElementById('mt-meta-urb').value)||100;
+  const metaRur=parseInt(document.getElementById('mt-meta-rur').value)||60;
+  if(!mes) return;
+  const [mm,aa]=mes.split('/');
+  const di=`${aa}-${mm}-01`;
+  const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  document.getElementById('mt-urb-body').innerHTML='<div class="vazio-msg">Carregando...</div>';
+  document.getElementById('mt-rur-body').innerHTML='<div class="vazio-msg">Carregando...</div>';
+  let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
+  if(base) qMat=qMat.eq('base',base);
+  const {data:mats}=await qMat;
+  const matMap3={};
+  (mats||[]).forEach(r=>matMap3[r.matricula]={nome:r.nome_leiturista});
+  const matsIds=Object.keys(matMap3);
+  if(!matsIds.length){
+    document.getElementById('mt-urb-body').innerHTML='<div class="vazio-msg">Nenhum leiturista encontrado.</div>';
+    document.getElementById('mt-rur-body').innerHTML='<div class="vazio-msg">Nenhum leiturista encontrado.</div>';
+    return;
+  }
+  const {data:jornada}=await sb.from('jornada')
+    .select('matricula,rz,qtd_leituras')
+    .in('matricula',matsIds).gte('data',di).lte('data',df);
+  const acum={};
+  (jornada||[]).forEach(row=>{
+    if((row.qtd_leituras||0)<10) return;
+    const mat=row.matricula;
+    if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0};
+    const n=parseInt(String(row.rz||'').split('.')[0]);
+    if(n>=1&&n<=88){acum[mat].urb+=row.qtd_leituras;acum[mat].diasUrb++;}
+    else if(n>=89&&n<=99){acum[mat].rur+=row.qtd_leituras;acum[mat].diasRur++;}
+  });
+  const abaixoUrb=[];
+  const abaixoRur=[];
+  Object.entries(acum).forEach(([mat,v])=>{
+    const mediaUrb=v.diasUrb>0?Math.round(v.urb/v.diasUrb):0;
+    const mediaRur=v.diasRur>0?Math.round(v.rur/v.diasRur):0;
+    if(v.urb>=v.rur&&v.diasUrb>0&&mediaUrb<metaUrb) abaixoUrb.push({mat,media:mediaUrb,dias:v.diasUrb});
+    if(v.rur>v.urb&&v.diasRur>0&&mediaRur<metaRur) abaixoRur.push({mat,media:mediaRur,dias:v.diasRur});
+  });
+  abaixoUrb.sort((a,b)=>a.media-b.media);
+  abaixoRur.sort((a,b)=>a.media-b.media);
+  function renderMetaBox(elId,lista,meta,tipo){
+    const el=document.getElementById(elId);
+    if(!lista.length){el.innerHTML=`<div class="vazio-msg">Todos acima da meta de ${meta} leituras/dia.</div>`;return;}
+    const badge=tipo==='urb'?'<span class="badge-urb">Urbano</span>':'<span class="badge-rur">Rural</span>';
+    el.innerHTML=lista.map((r,i)=>{
+      const info=matMap3[r.mat]||{nome:r.mat};
+      return `<div class="meta-row ${i%2===1?'par':''}">
+        <div class="meta-mat">${badge} ${r.mat} \u2014 ${info.nome}</div>
+        <div class="meta-val">${r.media}/dia</div>
+        <div class="meta-ref">${r.dias} dia(s) \u00b7 meta ${meta}</div>
+      </div>`;
+    }).join('');
+  }
+  renderMetaBox('mt-urb-body',abaixoUrb,metaUrb,'urb');
+  renderMetaBox('mt-rur-body',abaixoRur,metaRur,'rur');
 }
 
 // ── LOG DE UPLOADS (localStorage) ────────────────────────────────
