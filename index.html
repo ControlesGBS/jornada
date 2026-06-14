@@ -761,7 +761,7 @@ async function processarCemig(){
           const oc=row[12]!=null?parseInt(String(row[12]).trim())||0:0;
           const medidor=row[3]!=null?String(row[3]).trim():null;
           const qtdDig=row[32]!=null?parseInt(String(row[32]).trim())||1:1;
-          const reg=row[4]!=null?String(row[4]).trim():null;
+          const reg=row[8]!=null?String(row[8]).trim():null;
           if(!dh||!hora||!mat||!ul) continue;
           const m2=dh.match(/(\d{2})\/(\d{2})\/(\d{4})/);
           if(!m2) continue;
