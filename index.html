@@ -270,6 +270,14 @@ td.rota-col{text-align:left;font-size:11px}
         <div class="log-scroll" id="log-uploads-lista">
           <span class="log-vazio">Nenhum upload ainda.</span>
         </div>
+        <div style="margin-top:12px;border-top:0.5px solid #c0dcc0;padding-top:12px">
+          <div style="font-size:11px;color:#4a7a4a;margin-bottom:6px">Verificar gatilhos de impedimentos:</div>
+          <select id="gat-mes" style="width:100%;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:12px;background:#f8fbf8;color:#1a2a1a;height:28px;margin-bottom:6px">
+            <option value="">Selecione o mês...</option>
+          </select>
+          <button id="btn-gatilho" onclick="rodarGatilhosImpedimentos()" style="width:100%;background:#2d7a2d;color:#fff;border:none;border-radius:5px;padding:6px;font-size:12px;font-weight:500;cursor:pointer">🔔 Verificar gatilhos</button>
+          <div id="prog-gatilho" style="font-size:11px;margin-top:6px;min-height:14px;color:#4a7a4a"></div>
+        </div>
       </div>
     </div>
 
@@ -354,6 +362,110 @@ function irPara(id,btn){
 async function sair(){ await sb.auth.signOut(); location.reload(); }
 
 // ── FILTROS ──────────────────────────────────────────────────────
+// ── EMAIL ─────────────────────────────────────────────────────────
+async function enviarEmailTratativa(para,assunto,corpo){
+  try{
+    await fetch('https://ndwivbhqglpnfyqwjbzu.supabase.co/functions/v1/enviar-email',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5kd2l2YmhxZ2xwbmZ5cXdqYnp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA0MjMwNzksImV4cCI6MjA5NTk5OTA3OX0.uYzp_BlsQlgMp48k10gpSQdBReXJToGuVAkh38i3ABg'},
+      body:JSON.stringify({para,assunto,corpo})
+    });
+  }catch(e){console.error('Erro email:',e);}
+}
+
+// ── GATILHOS IMPEDIMENTOS ─────────────────────────────────────────
+async function verificarGatilhosImpedimentos(mesStr, dadosFilt){
+  const [aa,mm]=mesStr.split('-');
+  const mesRef=`${mm}/${aa}`;
+  const {data:cfg}=await sb.from('tratativas_config').select('*').single();
+  if(!cfg||!cfg.impedimentos_ativo||cfg.impedimentos_email_pausado) return;
+  const qtdGatilho=cfg.impedimentos_qtd||10;
+  const contagem={};
+  dadosFilt.forEach(r=>{
+    if(!r.matricula) return;
+    if((r.responsabilidade||'').toUpperCase()!=='GBS') return;
+    const chave=`${r.matricula}|${r.base||''}`;
+    if(!contagem[chave]) contagem[chave]={qtd:0,base:r.base,matricula:r.matricula,nome:r.leiturista||null};
+    contagem[chave].qtd++;
+  });
+  for(const [,v] of Object.entries(contagem)){
+    if(v.qtd<qtdGatilho) continue;
+    const multiplos=Math.floor(v.qtd/qtdGatilho);
+    for(let m=1;m<=multiplos;m++){
+      const valorDisp=m*qtdGatilho;
+      const {data:ja}=await sb.from('tratativas_disparos').select('id')
+        .eq('matricula',v.matricula).eq('mes_ref',mesRef).eq('tipo','impedimentos')
+        .eq('valor_disparado',valorDisp).eq('base',v.base||'').single();
+      if(ja) continue;
+      const {data:sup}=await sb.from('usuarios_portal').select('id,nome,email')
+        .eq('base',v.base).eq('perfil','supervisor').eq('ativo',true).single();
+      if(!sup) continue;
+      const prazo=new Date();
+      prazo.setDate(prazo.getDate()+(cfg.prazo_dias||5));
+      const prazoStr=prazo.toLocaleDateString('pt-BR');
+      const prazoDb=prazo.toISOString().split('T')[0];
+      const {data:trat}=await sb.from('tratativas').insert({
+        tipo:'impedimentos',automatica:true,mes_ref:mesRef,
+        matricula:v.matricula,nome_leiturista:v.nome||v.matricula,base:v.base,
+        supervisor_id:sup.id,supervisor_email:sup.email,supervisor_nome:sup.nome,
+        detalhe:`${v.qtd} impedimento(s) GBS em ${mesRef} (gatilho: ${valorDisp})`,
+        prazo_resposta:prazoDb,
+      }).select().single();
+      await sb.from('tratativas_disparos').insert({
+        matricula:v.matricula,mes_ref:mesRef,tipo:'impedimentos',
+        valor_disparado:valorDisp,base:v.base||''
+      });
+      const link=`${location.origin}/controles/tratativas/responder.html?id=${trat?.id}`;
+      await enviarEmailTratativa(sup.email,'Gestão de Controles - Ação atribuída a você',
+        `<div style="font-family:system-ui,sans-serif;max-width:500px;margin:0 auto;color:#1a2a1a">
+          <div style="background:#1a4a1a;padding:14px 20px;border-radius:8px 8px 0 0"><span style="color:#c8e8c8;font-weight:500;font-size:15px">GBS Serviços — Gestão de Controles</span></div>
+          <div style="background:#fff;border:0.5px solid #c0dcc0;padding:20px;border-radius:0 0 8px 8px">
+            <p style="margin-bottom:14px">Olá, <strong>${sup.nome}</strong>!</p>
+            <p style="margin-bottom:14px">Uma ocorrência foi identificada e requer sua atenção.</p>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px">
+              <tr><td style="padding:6px 10px;border:0.5px solid #c0dcc0;background:#f8fbf8;font-weight:500;width:35%">Base</td><td style="padding:6px 10px;border:0.5px solid #c0dcc0">${v.base||'—'}</td></tr>
+              <tr><td style="padding:6px 10px;border:0.5px solid #c0dcc0;background:#f8fbf8;font-weight:500">Tipo</td><td style="padding:6px 10px;border:0.5px solid #c0dcc0">Impedimentos GBS</td></tr>
+              <tr><td style="padding:6px 10px;border:0.5px solid #c0dcc0;background:#f8fbf8;font-weight:500">Ocorrência</td><td style="padding:6px 10px;border:0.5px solid #c0dcc0">${v.qtd} impedimento(s) — leiturista ${v.nome||v.matricula} — ${mesRef}</td></tr>
+            </table>
+            <p style="margin-bottom:16px">Por favor, registre a tratativa até <strong>${prazoStr}</strong> clicando no botão abaixo.</p>
+            <div style="text-align:center;margin-bottom:20px"><a href="${link}" style="background:#2d7a2d;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:500;font-size:13px">REGISTRAR TRATATIVA</a></div>
+            <p style="font-size:11px;color:#4a7a4a;border-top:0.5px solid #c0dcc0;padding-top:12px">At.te<br><strong>Gestão de Controles</strong></p>
+          </div>
+        </div>`
+      );
+    }
+  }
+}
+
+async function rodarGatilhosImpedimentos(){
+  const mes=document.getElementById('gat-mes').value;
+  const prog=document.getElementById('prog-gatilho');
+  const btn=document.getElementById('btn-gatilho');
+  if(!mes){prog.style.color='#dc2626';prog.textContent='Selecione o mês.';return;}
+  btn.disabled=true;prog.style.color='#4a7a4a';prog.textContent='Buscando impedimentos...';
+  const [mm,aa]=mes.split('/');
+  const mesStr=`${aa}-${mm}`;
+  const dataInicio=`${mesStr}-01`;
+  const diasNoMes=new Date(parseInt(aa),parseInt(mm),0).getDate();
+  const dataFim=`${mesStr}-${String(diasNoMes).padStart(2,'0')}`;
+  let imps=[],_from=0;
+  while(true){
+    const {data:lote}=await sb.from('impedimentos')
+      .select('*').gte('data',dataInicio).lte('data',dataFim).range(_from,_from+999);
+    if(!lote||!lote.length) break;
+    imps=imps.concat(lote);
+    if(lote.length<1000) break;
+    _from+=1000;
+  }
+  const {data:acert}=await sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref',mesStr);
+  const acertSet=new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
+  const dadosFilt=imps.filter(r=>!acertSet.has(`${r.instalacao}|${r.reg}`));
+  prog.textContent=`${dadosFilt.length} impedimentos. Verificando...`;
+  await verificarGatilhosImpedimentos(mesStr,dadosFilt);
+  prog.style.color='#16a34a';prog.textContent='✓ Gatilhos verificados!';
+  btn.disabled=false;
+}
+
 async function iniciarFiltros(){
   const sel=document.getElementById('f-mes');
   const hoje=new Date();
@@ -362,6 +474,14 @@ async function iniciarFiltros(){
     const mm=String(d.getMonth()+1).padStart(2,'0');
     const val=`${mm}/${d.getFullYear()}`;
     sel.innerHTML+=`<option value="${val}">${val}</option>`;
+  }
+  // Popular select de gatilhos
+  const selGat=document.getElementById('gat-mes');
+  for(let i=0;i<12;i++){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    const val=`${mm}/${d.getFullYear()}`;
+    selGat.innerHTML+=`<option value="${val}">${val}</option>`;
   }
   ['rk-mes','ai-mes','mt-mes'].forEach(id=>{
     const s=document.getElementById(id);
