@@ -1088,7 +1088,8 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
   // Verificar se já disparou esse valor
   if(valorDisparado!=null){
     const {data:ja}=await sb.from('tratativas_disparos').select('id')
-      .eq('matricula',matricula).eq('mes_ref',mesRef).eq('tipo',tipo).eq('valor_disparado',valorDisparado).single();
+      .eq('matricula',matricula).eq('mes_ref',mesRef).eq('tipo',tipo)
+      .eq('valor_disparado',valorDisparado).eq('base',base||'').single();
     if(ja) return;
   }
   // Buscar supervisor da base
@@ -1108,20 +1109,29 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
   }).select().single();
   // Registrar disparo
   if(valorDisparado!=null){
-    await sb.from('tratativas_disparos').insert({matricula,mes_ref:mesRef,tipo,valor_disparado:valorDisparado});
+    await sb.from('tratativas_disparos').insert({matricula,mes_ref:mesRef,tipo,valor_disparado:valorDisparado,base:base||''});
   }
   // Enviar email
   const link=`${location.origin}/controles/tratativas/responder.html?id=${trat?.id}`;
   const tipoLabel={impedimentos:'Impedimentos GBS',erros:'Erros de leitura',meta:'Meta de leituras',inicio_tardio:'Início tardio'}[tipo]||tipo;
   await enviarEmailTratativa(
     sup.email,
-    `[GBS] Tratativa necessária — ${tipoLabel} — ${nomeLeiturista}`,
-    `<p>Olá, ${sup.nome}!</p>
-    <p>Uma tratativa foi gerada para o leiturista <strong>${nomeLeiturista}</strong> (${matricula}) — base ${base}.</p>
-    <p><strong>Ocorrência:</strong> ${tipoLabel}<br><strong>Detalhe:</strong> ${detalhe}<br><strong>Mês de referência:</strong> ${mesRef}</p>
-    <p>Prazo para resposta: <strong>${prazoStr}</strong></p>
-    <p><a href="${link}">Clique aqui para registrar a tratativa</a></p>
-    <p>GBS Serviços</p>`
+    'Gestão de Controles - Ação atribuída a você',
+    `<div style="font-family:system-ui,sans-serif;max-width:500px;margin:0 auto;color:#1a2a1a">
+      <div style="background:#1a4a1a;padding:14px 20px;border-radius:8px 8px 0 0"><span style="color:#c8e8c8;font-weight:500;font-size:15px">GBS Serviços — Gestão de Controles</span></div>
+      <div style="background:#fff;border:0.5px solid #c0dcc0;padding:20px;border-radius:0 0 8px 8px">
+        <p style="margin-bottom:14px">Olá, <strong>${sup.nome}</strong>!</p>
+        <p style="margin-bottom:14px">Uma ocorrência foi identificada e requer sua atenção.</p>
+        <table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px">
+          ${base?`<tr><td style="padding:6px 10px;border:0.5px solid #c0dcc0;background:#f8fbf8;font-weight:500;width:35%">Base</td><td style="padding:6px 10px;border:0.5px solid #c0dcc0">${base}</td></tr>`:''}
+          <tr><td style="padding:6px 10px;border:0.5px solid #c0dcc0;background:#f8fbf8;font-weight:500">Tipo</td><td style="padding:6px 10px;border:0.5px solid #c0dcc0">${tipoLabel}</td></tr>
+          <tr><td style="padding:6px 10px;border:0.5px solid #c0dcc0;background:#f8fbf8;font-weight:500">Ocorrência</td><td style="padding:6px 10px;border:0.5px solid #c0dcc0">${detalhe}</td></tr>
+        </table>
+        <p style="margin-bottom:16px">Por favor, registre a tratativa até <strong>${prazoStr}</strong> clicando no botão abaixo.</p>
+        <div style="text-align:center;margin-bottom:20px"><a href="${link}" style="background:#2d7a2d;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:500;font-size:13px">REGISTRAR TRATATIVA</a></div>
+        <p style="font-size:11px;color:#4a7a4a;border-top:0.5px solid #c0dcc0;padding-top:12px">At.te<br><strong>Gestão de Controles</strong></p>
+      </div>
+    </div>`
   );
 }
 
@@ -1137,25 +1147,26 @@ async function verificarGatilhosImpedimentos(mesRef){
   const {data:imps}=await sb.from('impedimentos').select('matricula,base')
     .gte('data',di).lte('data',df).eq('responsabilidade','GBS');
   if(!imps||!imps.length) return;
-  // Agrupar por matricula
+  // Agrupar por matricula+base
   const contagem={};
   imps.forEach(r=>{
-    if(!contagem[r.matricula]) contagem[r.matricula]={qtd:0,base:r.base};
-    contagem[r.matricula].qtd++;
+    const chave=`${r.matricula}|${r.base||''}`;
+    if(!contagem[chave]) contagem[chave]={qtd:0,base:r.base,matricula:r.matricula};
+    contagem[chave].qtd++;
   });
   // Buscar nomes
-  const mats=Object.keys(contagem);
+  const mats=[...new Set(Object.values(contagem).map(v=>v.matricula))];
   const {data:matData}=await sb.from('matriculas').select('matricula,nome_leiturista').in('matricula',mats);
   const nomeMap={};
   (matData||[]).forEach(r=>nomeMap[r.matricula]=r.nome_leiturista);
   // Disparar para cada múltiplo atingido
-  for(const [mat,v] of Object.entries(contagem)){
+  for(const [chave,v] of Object.entries(contagem)){
     const multiplosAtingidos=Math.floor(v.qtd/qtdGatilho);
     for(let m=1;m<=multiplosAtingidos;m++){
       const valorDisp=m*qtdGatilho;
       await dispararTratativa({
-        tipo:'impedimentos', matricula:mat,
-        nomeLeiturista:nomeMap[mat]||mat, base:v.base, mesRef,
+        tipo:'impedimentos', matricula:v.matricula,
+        nomeLeiturista:nomeMap[v.matricula]||v.matricula, base:v.base, mesRef,
         detalhe:`${v.qtd} impedimentos GBS no mês (gatilho: ${valorDisp})`,
         valorDisparado:valorDisp
       });
