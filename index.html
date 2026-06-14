@@ -287,6 +287,27 @@ td.rota-col{text-align:left;font-size:11px}
       <div class="progresso" id="prog-mat"></div>
     </div>
 
+    <div class="card" style="grid-column:1/-1;background:#fff8e6;border-color:#fac775" id="card-fechar-mes">
+      <h3 style="color:#633806">Fechar mês — Meta de leituras e Início tardio</h3>
+      <p style="color:#854f0b">Calcula a média do mês selecionado e dispara emails de tratativa para os supervisores quando necessário.</p>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
+        <div>
+          <label style="font-size:11px;color:#854f0b;display:block;margin-bottom:3px">Mês a fechar</label>
+          <select id="fechar-mes-sel" style="border:0.5px solid #fac775;border-radius:5px;padding:4px 8px;font-size:13px;background:#fffdf5;color:#633806;height:30px"></select>
+        </div>
+        <button class="btn" style="background:#ba7517;margin-top:16px" id="btn-fechar-mes" onclick="fecharMes()">Fechar mês</button>
+        <div class="progresso" id="prog-fechar-mes" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+    <div class="card" style="grid-column:1/-1">
+      <h3>Configurações de tratativas</h3>
+      <p>Defina os gatilhos que disparam emails de tratativa para os supervisores.</p>
+      <div style="margin-top:10px">
+        <a href="../tratativas/index.html" class="btn btn-verde" style="display:inline-block;text-decoration:none">Abrir configurações de tratativas</a>
+      </div>
+    </div>
+
     <div class="card" style="grid-column:1/-1">
       <h3>Tabela local &rarr; base (fixa)</h3>
       <p>Tabela já carregada com <strong id="qtd-locais">—</strong> locais. Só atualize se a Cemig incluir novas cidades.</p>
@@ -789,6 +810,8 @@ async function processarCemig(){
     prog.className='progresso ok';
     prog.textContent=`\u2713 ${registros.length} registros de jornada + ${impsParaSalvar.length} impedimentos salvos!`;
     registrarUpload(fileCemig.name);
+    // Verificar gatilhos automáticos
+    if(mesRefImp) await verificarGatilhosImpedimentos(mesRefImp);
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
   btn.disabled=false;
 }
@@ -1038,7 +1061,226 @@ async function carregarInfoAdmin(){
   document.getElementById('qtd-locais').textContent=count||'—';
 }
 
-// ── PERFIL DO USUÁRIO ─────────────────────────────────────────────
+// ── FUNÇÕES SMTP (via Supabase Edge Function) ─────────────────────
+async function enviarEmailTratativa(para, assunto, corpo){
+  try{
+    await fetch(`${SUPABASE_URL}/functions/v1/enviar-email`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_KEY}`},
+      body:JSON.stringify({para,assunto,corpo})
+    });
+  }catch(e){console.error('Erro email:',e);}
+}
+
+// ── BUSCAR CONFIG TRATATIVAS ──────────────────────────────────────
+async function getConfig(){
+  const {data}=await sb.from('tratativas_config').select('*').single();
+  return data;
+}
+
+// ── DISPARAR TRATATIVA ────────────────────────────────────────────
+async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,detalhe,valorDisparado}){
+  const cfg=await getConfig();
+  if(!cfg) return;
+  // Verificar pausa global
+  const pausaMap={impedimentos:cfg.impedimentos_email_pausado,erros:cfg.erros_email_pausado,meta:cfg.meta_email_pausado,inicio_tardio:cfg.inicio_tardio_email_pausado};
+  if(pausaMap[tipo]) return;
+  // Verificar se já disparou esse valor
+  if(valorDisparado!=null){
+    const {data:ja}=await sb.from('tratativas_disparos').select('id')
+      .eq('matricula',matricula).eq('mes_ref',mesRef).eq('tipo',tipo).eq('valor_disparado',valorDisparado).single();
+    if(ja) return;
+  }
+  // Buscar supervisor da base
+  const {data:sup}=await sb.from('usuarios_portal').select('id,nome,email')
+    .eq('base',base).in('perfil',['supervisor']).eq('ativo',true).single();
+  if(!sup) return;
+  // Calcular prazo
+  const prazo=new Date();
+  prazo.setDate(prazo.getDate()+(cfg.prazo_dias||5));
+  const prazoStr=prazo.toLocaleDateString('pt-BR');
+  // Salvar tratativa
+  const {data:trat}=await sb.from('tratativas').insert({
+    tipo, automatica:true, mes_ref:mesRef,
+    matricula, nome_leiturista:nomeLeiturista, base,
+    supervisor_id:sup.id, supervisor_email:sup.email, supervisor_nome:sup.nome,
+    detalhe, prazo_resposta:prazo.toISOString().split('T')[0],
+  }).select().single();
+  // Registrar disparo
+  if(valorDisparado!=null){
+    await sb.from('tratativas_disparos').insert({matricula,mes_ref:mesRef,tipo,valor_disparado:valorDisparado});
+  }
+  // Enviar email
+  const link=`${location.origin}/controles/tratativas/responder.html?id=${trat?.id}`;
+  const tipoLabel={impedimentos:'Impedimentos GBS',erros:'Erros de leitura',meta:'Meta de leituras',inicio_tardio:'Início tardio'}[tipo]||tipo;
+  await enviarEmailTratativa(
+    sup.email,
+    `[GBS] Tratativa necessária — ${tipoLabel} — ${nomeLeiturista}`,
+    `<p>Olá, ${sup.nome}!</p>
+    <p>Uma tratativa foi gerada para o leiturista <strong>${nomeLeiturista}</strong> (${matricula}) — base ${base}.</p>
+    <p><strong>Ocorrência:</strong> ${tipoLabel}<br><strong>Detalhe:</strong> ${detalhe}<br><strong>Mês de referência:</strong> ${mesRef}</p>
+    <p>Prazo para resposta: <strong>${prazoStr}</strong></p>
+    <p><a href="${link}">Clique aqui para registrar a tratativa</a></p>
+    <p>GBS Serviços</p>`
+  );
+}
+
+// ── VERIFICAR GATILHOS APÓS UPLOAD (impedimentos) ─────────────────
+async function verificarGatilhosImpedimentos(mesRef){
+  const cfg=await getConfig();
+  if(!cfg||!cfg.impedimentos_ativo) return;
+  const qtdGatilho=cfg.impedimentos_qtd||10;
+  const [mm,aa]=mesRef.split('/');
+  const di=`${aa}-${mm}-01`;
+  const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  // Contar impedimentos GBS por leiturista no mês
+  const {data:imps}=await sb.from('impedimentos').select('matricula,base')
+    .gte('data',di).lte('data',df).eq('responsabilidade','GBS');
+  if(!imps||!imps.length) return;
+  // Agrupar por matricula
+  const contagem={};
+  imps.forEach(r=>{
+    if(!contagem[r.matricula]) contagem[r.matricula]={qtd:0,base:r.base};
+    contagem[r.matricula].qtd++;
+  });
+  // Buscar nomes
+  const mats=Object.keys(contagem);
+  const {data:matData}=await sb.from('matriculas').select('matricula,nome_leiturista').in('matricula',mats);
+  const nomeMap={};
+  (matData||[]).forEach(r=>nomeMap[r.matricula]=r.nome_leiturista);
+  // Disparar para cada múltiplo atingido
+  for(const [mat,v] of Object.entries(contagem)){
+    const multiplosAtingidos=Math.floor(v.qtd/qtdGatilho);
+    for(let m=1;m<=multiplosAtingidos;m++){
+      const valorDisp=m*qtdGatilho;
+      await dispararTratativa({
+        tipo:'impedimentos', matricula:mat,
+        nomeLeiturista:nomeMap[mat]||mat, base:v.base, mesRef,
+        detalhe:`${v.qtd} impedimentos GBS no mês (gatilho: ${valorDisp})`,
+        valorDisparado:valorDisp
+      });
+    }
+  }
+}
+
+// ── VERIFICAR GATILHOS APÓS UPLOAD (erros) ────────────────────────
+async function verificarGatilhosErros(mesRef){
+  const cfg=await getConfig();
+  if(!cfg||!cfg.erros_ativo) return;
+  const qtdGatilho=cfg.erros_qtd||1;
+  // Buscar erros do mes
+  const [mm,aa]=mesRef.split('/');
+  const mesDb=`${aa}-${mm}-01`;
+  const {data:erros}=await sb.from('erros').select('matricula,base,nome').eq('mes_erro',mesDb);
+  if(!erros||!erros.length) return;
+  const contagem={};
+  erros.forEach(r=>{
+    if(!contagem[r.matricula]) contagem[r.matricula]={qtd:0,base:r.base,nome:r.nome};
+    contagem[r.matricula].qtd++;
+  });
+  for(const [mat,v] of Object.entries(contagem)){
+    if(v.qtd>=qtdGatilho){
+      const multiplos=Math.floor(v.qtd/qtdGatilho);
+      for(let m=1;m<=multiplos;m++){
+        const valorDisp=m*qtdGatilho;
+        await dispararTratativa({
+          tipo:'erros', matricula:mat,
+          nomeLeiturista:v.nome||mat, base:v.base, mesRef,
+          detalhe:`${v.qtd} erros de leitura no mês (gatilho: ${valorDisp})`,
+          valorDisparado:valorDisp
+        });
+      }
+    }
+  }
+}
+
+// ── FECHAR MÊS (meta + início tardio) ────────────────────────────
+async function fecharMes(){
+  const mes=document.getElementById('fechar-mes-sel').value;
+  if(!mes) return;
+  const prog=document.getElementById('prog-fechar-mes');
+  const btn=document.getElementById('btn-fechar-mes');
+  btn.disabled=true; prog.className='progresso'; prog.textContent='Processando...';
+  try{
+    const cfg=await getConfig();
+    const [mm,aa]=mes.split('/');
+    const di=`${aa}-${mm}-01`;
+    const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+    // Buscar jornada do mês
+    const {data:jornada}=await sb.from('jornada').select('matricula,rz,qtd_leituras,hora_inicial')
+      .gte('data',di).lte('data',df);
+    if(!jornada||!jornada.length){prog.textContent='Nenhum dado encontrado para esse mês.';btn.disabled=false;return;}
+    // Agrupar por leiturista
+    const acum={};
+    jornada.forEach(r=>{
+      const mat=r.matricula;
+      if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0,somaInicio:0,diasInicio:0};
+      const n=parseInt(String(r.rz||'').split('.')[0]);
+      const leit=r.qtd_leituras||0;
+      if(leit<10) return;
+      if(n>=1&&n<=88){acum[mat].urb+=leit;acum[mat].diasUrb++;}
+      else if(n>=89&&n<=99){acum[mat].rur+=leit;acum[mat].diasRur++;}
+      if(r.hora_inicial){
+        const [hh,mi]=(r.hora_inicial||'00:00').split(':').map(Number);
+        acum[mat].somaInicio+=hh*60+mi;
+        acum[mat].diasInicio++;
+      }
+    });
+    // Buscar nomes e bases
+    const mats=Object.keys(acum);
+    const {data:matData}=await sb.from('matriculas').select('matricula,nome_leiturista,base').in('matricula',mats);
+    const infoMap={};
+    (matData||[]).forEach(r=>infoMap[r.matricula]={nome:r.nome_leiturista,base:r.base});
+    let disparosFeitos=0;
+    for(const [mat,v] of Object.entries(acum)){
+      const info=infoMap[mat]||{nome:mat,base:''};
+      // Meta leituras
+      if(cfg.meta_ativo){
+        const mediaUrb=v.diasUrb>0?Math.round(v.urb/v.diasUrb):0;
+        const mediaRur=v.diasRur>0?Math.round(v.rur/v.diasRur):0;
+        if(v.urb>=v.rur && v.diasUrb>0 && mediaUrb<cfg.meta_urb){
+          await dispararTratativa({tipo:'meta',matricula:mat,nomeLeiturista:info.nome,base:info.base,mesRef:mes,
+            detalhe:`Média urbana ${mediaUrb}/dia (meta: ${cfg.meta_urb})`,valorDisparado:null});
+          disparosFeitos++;
+        }
+        if(v.rur>v.urb && v.diasRur>0 && mediaRur<cfg.meta_rur){
+          await dispararTratativa({tipo:'meta',matricula:mat,nomeLeiturista:info.nome,base:info.base,mesRef:mes,
+            detalhe:`Média rural ${mediaRur}/dia (meta: ${cfg.meta_rur})`,valorDisparado:null});
+          disparosFeitos++;
+        }
+      }
+      // Início tardio
+      if(cfg.inicio_tardio_ativo && v.diasInicio>0){
+        const mediaInicio=Math.round(v.somaInicio/v.diasInicio);
+        const [limH,limM]=(cfg.inicio_tardio_hora||'09:00').split(':').map(Number);
+        const limMin=limH*60+limM;
+        if(mediaInicio>limMin){
+          const hh=String(Math.floor(mediaInicio/60)).padStart(2,'0');
+          const mi=String(mediaInicio%60).padStart(2,'0');
+          await dispararTratativa({tipo:'inicio_tardio',matricula:mat,nomeLeiturista:info.nome,base:info.base,mesRef:mes,
+            detalhe:`Média de início ${hh}:${mi} (limite: ${cfg.inicio_tardio_hora})`,valorDisparado:null});
+          disparosFeitos++;
+        }
+      }
+    }
+    prog.className='progresso ok';
+    prog.textContent=`\u2713 Mês ${mes} fechado! ${disparosFeitos} email(s) disparado(s).`;
+  }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
+  btn.disabled=false;
+}
+
+async function carregarInfoAdmin(){
+  const {data:ld}=await sb.from('local_base').select('local');
+  document.getElementById('qtd-locais').textContent=(ld||[]).length;
+  // Popular select fechar mês
+  const sel=document.getElementById('fechar-mes-sel');
+  const hoje=new Date();
+  for(let i=1;i<=12;i++){
+    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    sel.innerHTML+=`<option value="${mm}/${d.getFullYear()}">${mm}/${d.getFullYear()}</option>`;
+  }
+}
 let PERFIL_BASE=null; // base do usuário logado (null = gestor, vê tudo)
 let PERFIL_TIPO=null; // 'gestor' | 'supervisor' | 'auxiliar'
 
