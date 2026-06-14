@@ -761,6 +761,7 @@ async function processarCemig(){
           const oc=row[12]!=null?parseInt(String(row[12]).trim())||0:0;
           const medidor=row[3]!=null?String(row[3]).trim():null;
           const qtdDig=row[32]!=null?parseInt(String(row[32]).trim())||1:1;
+          const reg=row[4]!=null?String(row[4]).trim():null;
           if(!dh||!hora||!mat||!ul) continue;
           const m2=dh.match(/(\d{2})\/(\d{2})\/(\d{4})/);
           if(!m2) continue;
@@ -779,7 +780,7 @@ async function processarCemig(){
             // Guardar dados do impedimento para salvar depois
             if(!grupos[chave].impedimentos) grupos[chave].impedimentos=[];
             grupos[chave].impedimentos.push({
-              instalacao:v0, medidor, oc_str:String(oc),
+              instalacao:v0, medidor, oc_str:String(oc), reg,
               qtd_digitacao:qtdDig, responsabilidade:resp,
               ul, rz, local_cod:lc, data:mesRefImp||dataStr, matricula:mat,
               endereco:'',
@@ -874,6 +875,7 @@ async function processarCemig(){
             qtd_digitacao:imp.qtd_digitacao,
             responsabilidade:imp.responsabilidade,
             local_cod:imp.local_cod,
+            reg:imp.reg||null,
           });
         }
       }
@@ -893,7 +895,7 @@ async function processarCemig(){
           data:r.data, matricula:r.matricula, rz:r.rz, ul:r.ul,
           instalacao:r.instalacao, medidor:r.medidor, ocorrencia:r.ocorrencia,
           endereco:r.endereco, qtd_digitacao:r.qtd_digitacao,
-          responsabilidade:r.responsabilidade,
+          responsabilidade:r.responsabilidade, reg:r.reg||null,
           cidade:lb.cidade||null, base:lb.base||null,
         };
       });
