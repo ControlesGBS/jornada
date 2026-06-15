@@ -248,38 +248,41 @@ td.rota-col{text-align:left;font-size:14px}
       <div class="kpi"><div class="kpi-label">Dias início cedo</div><div class="kpi-value" style="color:#854f0b">—</div></div>
       <div class="kpi"><div class="kpi-label">Dias término tardio</div><div class="kpi-value" style="color:#a32d2d">—</div></div>
     </div>
+    <!-- Faixa verde congelada -->
+    <div class="rank-card-hdr" style="border-radius:8px 8px 0 0">
+      <span>☰ Resumo por leiturista</span>
+      <span id="ah-count" style="font-size:11px;color:#90c090"></span>
+    </div>
+    <div style="background:#1a4a1a;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+        <colgroup>
+          <col style="width:110px"><col style="width:90px"><col style="width:180px">
+          <col style="width:110px"><col style="width:120px"><col style="width:120px">
+          <col style="width:120px"><col style="width:90px">
+        </colgroup>
+        <thead><tr>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Base</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Matrícula</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Nome</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Início cedo</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Término tardio</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Hora mais cedo</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Hora mais tarde</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap">Status</th>
+        </tr></thead>
+      </table>
+    </div>
   </div>
-  <div class="ranking-scroll" style="padding:0 20px 16px">
-    <div style="border:0.5px solid #c0dcc0;border-radius:8px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
-      <div class="rank-card-hdr" style="flex-shrink:0">
-        <span>☰ Resumo por leiturista</span>
-        <span id="ah-count" style="font-size:11px;color:#90c090"></span>
-      </div>
-      <div style="overflow:auto;flex:1">
-        <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
-          <colgroup>
-            <col style="width:90px">
-            <col style="width:180px">
-            <col style="width:110px">
-            <col style="width:120px">
-            <col style="width:120px">
-            <col style="width:120px">
-            <col style="width:90px">
-          </colgroup>
-          <thead>
-            <tr>
-              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Matrícula</th>
-              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Nome</th>
-              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Início cedo</th>
-              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Término tardio</th>
-              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Hora mais cedo</th>
-              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Hora mais tarde</th>
-              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:1">Status</th>
-            </tr>
-          </thead>
-          <tbody id="ah-tbody"><tr><td colspan="7" class="status-msg">Selecione o mês.</td></tr></tbody>
-        </table>
-      </div>
+  <div class="ranking-scroll" style="padding:0 20px 16px;padding-top:0">
+    <div style="border:0.5px solid #c0dcc0;border-top:none;border-radius:0 0 8px 8px;overflow-x:auto;background:#fff">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+        <colgroup>
+          <col style="width:110px"><col style="width:90px"><col style="width:180px">
+          <col style="width:110px"><col style="width:120px"><col style="width:120px">
+          <col style="width:120px"><col style="width:90px">
+        </colgroup>
+        <tbody id="ah-tbody"><tr><td colspan="8" class="status-msg">Selecione o mês.</td></tr></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -582,13 +585,14 @@ function renderAhTabela(lista){
   const tbody=document.getElementById('ah-tbody');
   document.getElementById('ah-count').textContent=`${lista.length} leiturista(s)`;
   if(!lista.length){
-    tbody.innerHTML='<tr><td colspan="7" class="status-msg">Nenhum leiturista encontrado.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="status-msg">Nenhum leiturista encontrado.</td></tr>';
     return;
   }
   tbody.innerHTML=lista.map(d=>{
     const corCedo=d.cedo>0?'color:#854f0b;font-weight:500':'';
     const corTarde=d.tarde>0?'color:#a32d2d;font-weight:500':'';
     return `<tr>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;font-size:12px">${d.base||'—'}</td>
       <td style="font-weight:500;padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8">${d.mat}</td>
       <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;font-size:12px">${d.nome}</td>
       <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;${corCedo}">${d.cedo} dia(s)</td>
@@ -623,7 +627,7 @@ async function carregarAlertaHorario(){
   if(baseAh) qMat=qMat.eq('base',baseAh);
   const {data:mats}=await qMat;
   const matMap={};
-  (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista||r.matricula});
+  (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista||r.matricula, base:r.base||'—'});
   const matsIds=Object.keys(matMap);
   if(!matsIds.length){tbody.innerHTML='<tr><td colspan="7" class="status-msg">Nenhum leiturista.</td></tr>';return;}
 
@@ -685,7 +689,7 @@ async function carregarAlertaHorario(){
       return (ord[sa]||2)-(ord[sb2]||2)||(acum[b].cedo+acum[b].tarde)-(acum[a].cedo+acum[a].tarde);
     })
     .map(mat=>({
-      mat, nome:matMap[mat]?.nome||mat,
+      mat, nome:matMap[mat]?.nome||mat, base:matMap[mat]?.base||'—',
       cedo:acum[mat].cedo, tarde:acum[mat].tarde,
       horaMaisCedo:acum[mat].horaMaisCedo, horaMaisTarde:acum[mat].horaMaisTarde,
       status:getStatus(mat)
