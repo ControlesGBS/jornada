@@ -638,9 +638,9 @@ function renderTabela(){
     const pouco=totalLeitDia<10;
     rows.push(`<tr class="${pouco?'sem-trab':''}">
       <td>${mat}</td>
-      <td style="font-size:11px">${rzStr||'—'}</td>
+      <td>${rzStr||'—'}</td>
       <td>${d}</td>
-      <td style="font-size:11px;${corDia2}">${SEMANAS[sem]}</td>
+      <td style="${corDia2}">${SEMANAS[sem]}</td>
       <td>${pouco?'<span style="color:#bbb">':''} ${hi}${pouco?'</span>':''}</td>
       <td>${hf}</td>
       <td>${intervalo>0?toHM(intervalo):'—'}</td>
