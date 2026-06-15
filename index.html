@@ -59,8 +59,11 @@ td.rota-col{text-align:left;font-size:14px}
 .ranking-topo{flex-shrink:0;padding:12px 20px 0;background:#f4f6f4}
 .ranking-scroll{flex:1;overflow-y:auto;padding:0 20px 16px}
 .rank-card{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;overflow:hidden}
-.rank-card-hdr{background:#1a4a1a;padding:10px 16px}
+.rank-card-hdr{background:#1a4a1a;padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
 .rank-card-hdr span{color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px}
+.b-critico{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;background:#fcebeb;color:#791f1f}
+.b-atencao{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;background:#faeeda;color:#633806}
+.b-normal{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;background:#eaf3de;color:#27500a}
 .bar-row{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:0.5px solid #e8f4e8}
 .bar-row:last-child{border-bottom:none}
 .bar-rank{width:30px;font-size:14px;color:#4a7a4a;font-weight:500;flex-shrink:0;text-align:right}
@@ -145,6 +148,7 @@ td.rota-col{text-align:left;font-size:14px}
 <div class="nav">
   <button onclick="location.href='https://gbsservicos.com/controles/teste/index.html'" title="Voltar ao Portal" style="font-size:16px;padding:6px 12px">🏠</button>
   <button class="ativo" onclick="irPara('painel',this)">Painel de jornada</button>
+  <button onclick="irPara('alerta-horario',this)">Alerta de horário</button>
   <button onclick="irPara('ranking',this)">Ranking de leituras</button>
   <button onclick="irPara('admin',this)">Administração</button>
 </div>
@@ -210,11 +214,54 @@ td.rota-col{text-align:left;font-size:14px}
       <div><label>Mês/Ano</label><select id="rk-mes" onchange="carregarRanking()"></select></div>
       <div><label>Base</label><select id="rk-base" onchange="carregarRanking()"><option value="">Todas as bases</option></select></div>
     </div>
+    <div class="rank-card-hdr" style="border-radius:8px 8px 0 0;margin:0 0 0 0"><span>☰ Ranking de leituras — todos os leituristas</span></div>
   </div>
-  <div class="ranking-scroll">
-    <div class="rank-card">
-      <div class="rank-card-hdr"><span>☰ Ranking de leituras — todos os leituristas</span></div>
+  <div class="ranking-scroll" style="padding-top:0">
+    <div style="border:0.5px solid #c0dcc0;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;background:#fff">
       <div id="rk-bars"><div class="status-msg">Selecione o mês.</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ALERTA DE HORÁRIO -->
+<div class="pag" id="pag-alerta-horario">
+<div class="ranking-inner">
+  <div class="ranking-topo">
+    <div class="filtros">
+      <div><label>Mês/Ano</label><select id="ah-mes" onchange="carregarAlertaHorario()"></select></div>
+      <div><label>Base</label><select id="ah-base" onchange="carregarAlertaHorario()"><option value="">Todas</option></select></div>
+      <div><label>Hora mínima (início)</label><input type="time" id="ah-min" value="07:30" onchange="carregarAlertaHorario()" style="border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px"></div>
+      <div><label>Hora máxima (fim)</label><input type="time" id="ah-max" value="17:30" onchange="carregarAlertaHorario()" style="border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px"></div>
+    </div>
+    <div class="kpis" id="ah-kpis" style="margin-bottom:10px">
+      <div class="kpi"><div class="kpi-label">Em alerta</div><div class="kpi-value" style="color:#a32d2d">—</div></div>
+      <div class="kpi"><div class="kpi-label">Dias início cedo</div><div class="kpi-value" style="color:#854f0b">—</div></div>
+      <div class="kpi"><div class="kpi-label">Dias término tardio</div><div class="kpi-value" style="color:#a32d2d">—</div></div>
+    </div>
+    <div class="rank-card-hdr" style="border-radius:8px 8px 0 0">
+      <span>☰ Resumo por leiturista</span>
+      <span id="ah-count" style="font-size:11px;color:#90c090"></span>
+    </div>
+    <div style="background:#1a4a1a;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Matrícula</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Nome</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Início cedo</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Término tardio</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Hora mais cedo</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Hora mais tarde</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap">Status</th>
+        </tr></thead>
+      </table>
+    </div>
+  </div>
+  <div class="ranking-scroll" style="padding-top:0">
+    <div style="border:0.5px solid #c0dcc0;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;background:#fff">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tbody id="ah-tbody"><tr><td colspan="7" class="status-msg">Selecione o mês.</td></tr></tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -348,6 +395,7 @@ function irPara(id,btn){
   document.getElementById('pag-'+id).classList.add('ativo');
   btn.classList.add('ativo');
   if(id==='ranking') carregarRanking();
+  if(id==='alerta-horario') carregarAlertaHorario();
 }
 async function sair(){ await sb.auth.signOut(); location.reload(); }
 
@@ -508,6 +556,119 @@ async function processarLote(){
   btn.disabled = false;
 }
 
+// ── ALERTA DE HORÁRIO ─────────────────────────────────────────────
+async function carregarAlertaHorario(){
+  const mes=document.getElementById('ah-mes').value;
+  const base=document.getElementById('ah-base').value;
+  const hMin=document.getElementById('ah-min').value||'07:30';
+  const hMax=document.getElementById('ah-max').value||'17:30';
+  const tbody=document.getElementById('ah-tbody');
+  if(!mes){tbody.innerHTML='<tr><td colspan="7" class="status-msg">Selecione o mês.</td></tr>';return;}
+  tbody.innerHTML='<tr><td colspan="7" class="status-msg">Carregando...</td></tr>';
+
+  const [mm,aa]=mes.split('/');
+  const mesRef=`${aa}-${mm}-01`;
+
+  // Buscar matrículas
+  let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
+  const baseAh=PERFIL_BASE||base;
+  if(baseAh) qMat=qMat.eq('base',baseAh);
+  const {data:mats}=await qMat;
+  const matMap={};
+  (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista||r.matricula});
+  const matsIds=Object.keys(matMap);
+  if(!matsIds.length){tbody.innerHTML='<tr><td colspan="7" class="status-msg">Nenhum leiturista.</td></tr>';return;}
+
+  // Buscar jornada do mês
+  let jornada=[], _from=0;
+  while(true){
+    const {data:lote}=await sb.from('jornada').select('matricula,hora_inicial,hora_final,qtd_leituras')
+      .in('matricula',matsIds).eq('mes_ref',mesRef).range(_from,_from+999);
+    if(!lote||!lote.length) break;
+    jornada=jornada.concat(lote);
+    if(lote.length<1000) break;
+    _from+=1000;
+  }
+
+  // Converter hora para minutos
+  const toMin=h=>{if(!h||!h.includes(':')) return null; const[hh,mi]=h.split(':').map(Number); return hh*60+mi;};
+  const minMin=toMin(hMin), maxMin=toMin(hMax);
+
+  // Agregar por leiturista
+  const acum={};
+  jornada.forEach(r=>{
+    if((r.qtd_leituras||0)<5) return; // ignora dias com poucas leituras
+    const mat=r.matricula;
+    if(!acum[mat]) acum[mat]={cedo:0,tarde:0,horaMaisCedo:null,horaMaisTarde:null};
+    const hi=toMin(r.hora_inicial), hf=toMin(r.hora_final);
+    if(hi!==null && hi<minMin){
+      acum[mat].cedo++;
+      if(!acum[mat].horaMaisCedo||hi<toMin(acum[mat].horaMaisCedo)) acum[mat].horaMaisCedo=r.hora_inicial;
+    }
+    if(hf!==null && hf>maxMin){
+      acum[mat].tarde++;
+      if(!acum[mat].horaMaisTarde||hf>toMin(acum[mat].horaMaisTarde)) acum[mat].horaMaisTarde=r.hora_final;
+    }
+  });
+
+  // Calcular status
+  const getStatus=(mat)=>{
+    const d=acum[mat]; if(!d) return 'normal';
+    let critico=false, atencao=false;
+    if(d.horaMaisCedo){
+      const m=toMin(d.horaMaisCedo);
+      if(m<360) critico=true;       // antes 06:00
+      else if(m<420) atencao=true;  // 06:00-06:59
+    }
+    if(d.horaMaisTarde){
+      const m=toMin(d.horaMaisTarde);
+      if(m>1110) critico=true;      // após 18:30
+      else if(m>1080) atencao=true; // 18:00-18:29
+    }
+    return critico?'critico':atencao?'atencao':'normal';
+  };
+
+  // Filtrar só quem tem algum alerta
+  const lista=matsIds
+    .filter(m=>acum[m]&&(acum[m].cedo>0||acum[m].tarde>0))
+    .sort((a,b)=>{
+      const ord={critico:0,atencao:1,normal:2};
+      return (ord[getStatus(a)]||2)-(ord[getStatus(b)]||2)||(acum[b].cedo+acum[b].tarde)-(acum[a].cedo+acum[a].tarde);
+    });
+
+  // KPIs
+  const totalCedo=lista.reduce((s,m)=>s+(acum[m]?.cedo||0),0);
+  const totalTarde=lista.reduce((s,m)=>s+(acum[m]?.tarde||0),0);
+  document.getElementById('ah-kpis').innerHTML=`
+    <div class="kpi"><div class="kpi-label">Em alerta</div><div class="kpi-value" style="color:#a32d2d">${lista.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Dias início cedo</div><div class="kpi-value" style="color:#854f0b">${totalCedo}</div></div>
+    <div class="kpi"><div class="kpi-label">Dias término tardio</div><div class="kpi-value" style="color:#a32d2d">${totalTarde}</div></div>`;
+  document.getElementById('ah-count').textContent=`${lista.length} leiturista(s)`;
+
+  if(!lista.length){
+    tbody.innerHTML='<tr><td colspan="7" class="status-msg">Nenhum leiturista fora do horário no período.</td></tr>';
+    return;
+  }
+
+  const labelStatus={critico:'Crítico',atencao:'Atenção',normal:'Normal'};
+  tbody.innerHTML=lista.map(mat=>{
+    const d=acum[mat];
+    const st=getStatus(mat);
+    const nome=matMap[mat]?.nome||mat;
+    const corCedo=d.cedo>0?'color:#854f0b;font-weight:500':'';
+    const corTarde=d.tarde>0?'color:#a32d2d;font-weight:500':'';
+    return `<tr>
+      <td style="font-weight:500;padding:9px 14px;border-bottom:0.5px solid #e0eee0">${mat}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;font-size:12px;color:#1a2a1a">${nome}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;${corCedo}">${d.cedo} dia(s)</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;${corTarde}">${d.tarde} dia(s)</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;font-family:monospace;${d.horaMaisCedo?'color:#854f0b;font-weight:500':''}">${d.horaMaisCedo||'—'}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;font-family:monospace;${d.horaMaisTarde?'color:#a32d2d;font-weight:500':''}">${d.horaMaisTarde||'—'}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center"><span class="b-${st}">${labelStatus[st]}</span></td>
+    </tr>`;
+  }).join('');
+}
+
 async function iniciarFiltros(){
   const sel=document.getElementById('f-mes');
   const hoje=new Date();
@@ -525,7 +686,7 @@ async function iniciarFiltros(){
     const val=`${mm}/${d.getFullYear()}`;
     selGat.innerHTML+=`<option value="${val}">${val}</option>`;
   }
-  ['rk-mes'].forEach(id=>{
+  ['rk-mes','ah-mes'].forEach(id=>{
     const s=document.getElementById(id);
     if(!s) return;
     for(let i=0;i<12;i++){
@@ -541,7 +702,7 @@ async function iniciarFiltros(){
     const bases=[...new Set((data||[]).map(r=>r.base).filter(Boolean))];
     const selB=document.getElementById('f-base');
     bases.forEach(b=>selB.innerHTML+=`<option value="${b}">${b}</option>`);
-    ['rk-base'].forEach(id=>{
+    ['rk-base','ah-base'].forEach(id=>{
       const s=document.getElementById(id);
       if(!s) return;
       bases.forEach(b=>s.innerHTML+=`<option value="${b}">${b}</option>`);
@@ -1527,7 +1688,7 @@ let PERFIL_TIPO=null; // 'gestor' | 'supervisor' | 'auxiliar'
       selBase.closest('div').style.display='none'; // esconde do sidebar
     }
     // Outras abas — esconde e trava
-    ['rk-base'].forEach(id=>{
+    ['rk-base','ah-base'].forEach(id=>{
       const s=document.getElementById(id);
       if(s){
         s.innerHTML=`<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
