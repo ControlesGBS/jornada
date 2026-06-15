@@ -751,13 +751,14 @@ function selecionarCemig(inp){
   document.getElementById('btn-cemig').disabled=false;
 }
 
-async function processarCemig(){
-  if(!fileCemig) return;
+async function processarCemig(fileOverride){
+  const arquivo = fileOverride || fileCemig;
+  if(!arquivo) return;
   const prog=document.getElementById('prog-cemig');
   const btn=document.getElementById('btn-cemig');
   btn.disabled=true; prog.className='progresso'; prog.textContent='Lendo arquivo...';
   try{
-    const buf=await fileCemig.arrayBuffer();
+    const buf=await arquivo.arrayBuffer();
     const wb=XLSX.read(buf,{type:'array',cellDates:true});
 
     // Agrupar leituras por mat+data no navegador
@@ -984,7 +985,7 @@ async function processarCemig(){
 
     prog.className='progresso ok';
     prog.textContent=`\u2713 ${registros.length} registros de jornada + ${impsParaSalvar.length} impedimentos salvos!`;
-    registrarUpload(fileCemig.name);
+    registrarUpload(arquivo.name);
     // Verificar gatilhos automáticos
     if(mesRefImp) await verificarGatilhosImpedimentos(mesRefImp);
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
@@ -992,11 +993,10 @@ async function processarCemig(){
 }
 
 async function processarArquivoCemig(file, onProgress){
-  fileCemig = file;
   const progEl = document.getElementById('prog-cemig');
   const observer = new MutationObserver(()=>{ onProgress && onProgress(progEl.textContent); });
   observer.observe(progEl, {childList:true, characterData:true, subtree:true});
-  await processarCemig();
+  await processarCemig(file);
   observer.disconnect();
   if(progEl.className.includes('erro')) throw new Error(progEl.textContent);
 }
