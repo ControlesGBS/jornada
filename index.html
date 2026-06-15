@@ -329,7 +329,6 @@ function irPara(id,btn){
   document.getElementById('pag-'+id).classList.add('ativo');
   btn.classList.add('ativo');
   if(id==='ranking') carregarRanking();
-  if(id==='ranking') carregarRanking();  if(id==='meta') carregarMeta();
 }
 async function sair(){ await sb.auth.signOut(); location.reload(); }
 
@@ -976,7 +975,17 @@ async function carregarRanking(){
   (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista,base:r.base});
   const matsIds=Object.keys(matMap);
   if(!matsIds.length){barsEl.innerHTML='<div class="status-msg">Nenhum leiturista encontrado.</div>';return;}
-  const {data:jornada}=await sb.from('jornada').select('matricula,qtd_leituras').in('matricula',matsIds).gte('data',di).lte('data',df);
+  // Buscar com paginação para não perder registros
+  let jornada=[], _from=0;
+  while(true){
+    const {data:lote}=await sb.from('jornada').select('matricula,qtd_leituras')
+      .in('matricula',matsIds).gte('data',di).lte('data',df)
+      .range(_from,_from+999);
+    if(!lote||!lote.length) break;
+    jornada=jornada.concat(lote);
+    if(lote.length<1000) break;
+    _from+=1000;
+  }
   const acum={};
   (jornada||[]).forEach(row=>{
     const mat=row.matricula;
