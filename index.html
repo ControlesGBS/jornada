@@ -692,6 +692,7 @@ async function processarCemig(){
     // Agrupar leituras por mat+data no navegador
     const grupos={};
     let mesRefImp = null; // mês de referência do cabeçalho (usado fora do loop)
+    const totalPorMat = {}; // conta todas as instalações do arquivo por matricula (independe da data)
     for(const sheetName of wb.SheetNames){
       const ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
@@ -729,6 +730,8 @@ async function processarCemig(){
           const m2=dh.match(/(\d{2})\/(\d{2})\/(\d{4})/);
           if(!m2) continue;
           const dataStr=`${m2[3]}-${m2[2]}-${m2[1]}`;
+          // Contar todas as instalações do arquivo para o total do mês (independe da data)
+          if(mat) totalPorMat[mat]=(totalPorMat[mat]||0)+1;
           const chave=`${mat}|${dataStr}`;
           if(!grupos[chave]) grupos[chave]={mat,data:dataStr,ul,rzs:[],lc_rotas:[],horas:[],imp_gbs:0,imp_cemig:0};
           grupos[chave].horas.push(hora);
@@ -875,6 +878,21 @@ async function processarCemig(){
       prog.textContent=`Jornada + ${impsEnriq.length} impedimentos salvos!`;
     }
 
+    // Salvar total de leituras por matricula do arquivo (mês do cabeçalho)
+    if(mesRefImp && Object.keys(totalPorMat).length){
+      const rz0=Object.values(grupos)[0]?.ul?.slice(0,2)||null;
+      // Deletar totais do mesmo mes+rz e reinserir
+      if(rz0) await sb.from('totais_rz').delete().eq('mes_ref',mesRefImp).eq('rz',rz0);
+      const totaisRecs=Object.entries(totalPorMat).map(([matricula,total_leituras])=>({
+        mes_ref:mesRefImp, rz:rz0||matricula, matricula, total_leituras
+      }));
+      if(totaisRecs.length){
+        const LOTE4=500;
+        for(let i=0;i<totaisRecs.length;i+=LOTE4)
+          await sb.from('totais_rz').upsert(totaisRecs.slice(i,i+LOTE4),{onConflict:'mes_ref,rz,matricula'}).select();
+      }
+    }
+
     // Salvar UL → leiturista usando dados já processados nos grupos
     if(mesRefImp){
       const ulLeitMap={};
@@ -965,8 +983,7 @@ async function carregarRanking(){
   if(!mes){barsEl.innerHTML='<div class="status-msg">Selecione o mês.</div>';return;}
   barsEl.innerHTML='<div class="status-msg">Carregando...</div>';
   const [mm,aa]=mes.split('/');
-  const di=`${aa}-${mm}-01`;
-  const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+  const mesRef=`${aa}-${mm}-01`;
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
   const baseRk=PERFIL_BASE||base;
   if(baseRk) qMat=qMat.eq('base',baseRk);
@@ -975,22 +992,34 @@ async function carregarRanking(){
   (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista,base:r.base});
   const matsIds=Object.keys(matMap);
   if(!matsIds.length){barsEl.innerHTML='<div class="status-msg">Nenhum leiturista encontrado.</div>';return;}
-  // Buscar com paginação para não perder registros
-  let jornada=[], _from=0;
+  // Buscar totais por matricula (contagem real do arquivo)
+  let totaisData=[], _from=0;
   while(true){
-    const {data:lote}=await sb.from('jornada').select('matricula,qtd_leituras')
-      .in('matricula',matsIds).gte('data',di).lte('data',df)
-      .range(_from,_from+999);
+    const {data:lote}=await sb.from('totais_rz').select('matricula,total_leituras')
+      .eq('mes_ref',mesRef).in('matricula',matsIds).range(_from,_from+999);
     if(!lote||!lote.length) break;
-    jornada=jornada.concat(lote);
+    totaisData=totaisData.concat(lote);
     if(lote.length<1000) break;
     _from+=1000;
   }
-  const acum={};
-  (jornada||[]).forEach(row=>{
-    const mat=row.matricula;
-    acum[mat]=(acum[mat]||0)+(row.qtd_leituras||0);
-  });
+  // Fallback: somar jornada se totais_rz não tiver matricula
+  let acum={};
+  if(totaisData.length && totaisData[0].matricula){
+    totaisData.forEach(r=>{acum[r.matricula]=(acum[r.matricula]||0)+(r.total_leituras||0);});
+  } else {
+    const di=`${aa}-${mm}-01`;
+    const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+    let jornada=[], _f=0;
+    while(true){
+      const {data:lote}=await sb.from('jornada').select('matricula,qtd_leituras')
+        .in('matricula',matsIds).gte('data',di).lte('data',df).range(_f,_f+999);
+      if(!lote||!lote.length) break;
+      jornada=jornada.concat(lote);
+      if(lote.length<1000) break;
+      _f+=1000;
+    }
+    jornada.forEach(row=>{acum[row.matricula]=(acum[row.matricula]||0)+(row.qtd_leituras||0);});
+  }
   const rank=Object.entries(acum).sort((a,b)=>b[1]-a[1]);
   if(!rank.length){barsEl.innerHTML='<div class="status-msg">Nenhum dado no período.</div>';return;}
   const maxVal=rank[0][1];
