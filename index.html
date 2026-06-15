@@ -866,6 +866,7 @@ async function processarCemig(fileOverride){
         horas_json:JSON.stringify(horas),
         imp_gbs:g.imp_gbs||0,
         imp_cemig:g.imp_cemig||0,
+        mes_ref:mesRefImp||null,
       });
     }
 
@@ -952,16 +953,20 @@ async function processarCemig(fileOverride){
 
     // Salvar total de leituras por matricula do arquivo (mês do cabeçalho)
     if(mesRefImp && Object.keys(totalPorMat).length){
-      const rz0=Object.values(grupos)[0]?.ul?.slice(0,2)||null;
-      // Deletar totais do mesmo mes+rz e reinserir
-      if(rz0) await sb.from('totais_rz').delete().eq('mes_ref',mesRefImp).eq('rz',rz0);
+      // Pegar o RZ de cada leiturista a partir dos grupos
+      const rzPorMat={};
+      Object.values(grupos).forEach(g=>{ if(g.mat&&g.rzs[0]) rzPorMat[g.mat]=g.rzs[0]; });
+      const rzsDoArquivo=[...new Set(Object.values(rzPorMat))];
+      // Deletar totais do mesmo mes+rz
+      for(const rz of rzsDoArquivo)
+        await sb.from('totais_rz').delete().eq('mes_ref',mesRefImp).eq('rz',rz);
       const totaisRecs=Object.entries(totalPorMat).map(([matricula,total_leituras])=>({
-        mes_ref:mesRefImp, rz:rz0||matricula, matricula, total_leituras
+        mes_ref:mesRefImp, rz:rzPorMat[matricula]||'00', matricula, total_leituras
       }));
       if(totaisRecs.length){
         const LOTE4=500;
         for(let i=0;i<totaisRecs.length;i+=LOTE4)
-          await sb.from('totais_rz').upsert(totaisRecs.slice(i,i+LOTE4),{onConflict:'mes_ref,rz,matricula'}).select();
+          await sb.from('totais_rz').upsert(totaisRecs.slice(i,i+LOTE4),{onConflict:'mes_ref,rz,matricula'});
       }
     }
 
@@ -1087,12 +1092,10 @@ async function carregarRanking(){
   if(totaisData.length && totaisData[0].matricula){
     totaisData.forEach(r=>{acum[r.matricula]=(acum[r.matricula]||0)+(r.total_leituras||0);});
   } else {
-    const di=`${aa}-${mm}-01`;
-    const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
     let jornada=[], _f=0;
     while(true){
       const {data:lote}=await sb.from('jornada').select('matricula,qtd_leituras')
-        .in('matricula',matsIds).gte('data',di).lte('data',df).range(_f,_f+999);
+        .in('matricula',matsIds).eq('mes_ref',mesRef).range(_f,_f+999);
       if(!lote||!lote.length) break;
       jornada=jornada.concat(lote);
       if(lote.length<1000) break;
