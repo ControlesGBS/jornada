@@ -233,35 +233,53 @@ td.rota-col{text-align:left;font-size:14px}
       <div><label>Base</label><select id="ah-base" onchange="carregarAlertaHorario()"><option value="">Todas</option></select></div>
       <div><label>Hora mínima (início)</label><input type="time" id="ah-min" value="07:30" onchange="carregarAlertaHorario()" style="border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px"></div>
       <div><label>Hora máxima (fim)</label><input type="time" id="ah-max" value="17:30" onchange="carregarAlertaHorario()" style="border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px"></div>
+      <div>
+        <label>Status</label>
+        <select id="ah-status" onchange="filtrarAlertaHorario()" style="border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px">
+          <option value="">Todos</option>
+          <option value="critico">Crítico</option>
+          <option value="atencao">Atenção</option>
+          <option value="normal">Normal</option>
+        </select>
+      </div>
     </div>
     <div class="kpis" id="ah-kpis" style="margin-bottom:10px">
       <div class="kpi"><div class="kpi-label">Em alerta</div><div class="kpi-value" style="color:#a32d2d">—</div></div>
       <div class="kpi"><div class="kpi-label">Dias início cedo</div><div class="kpi-value" style="color:#854f0b">—</div></div>
       <div class="kpi"><div class="kpi-label">Dias término tardio</div><div class="kpi-value" style="color:#a32d2d">—</div></div>
     </div>
-    <div class="rank-card-hdr" style="border-radius:8px 8px 0 0">
-      <span>☰ Resumo por leiturista</span>
-      <span id="ah-count" style="font-size:11px;color:#90c090"></span>
-    </div>
-    <div style="background:#1a4a1a;overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <thead><tr>
-          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Matrícula</th>
-          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Nome</th>
-          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Início cedo</th>
-          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Término tardio</th>
-          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Hora mais cedo</th>
-          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Hora mais tarde</th>
-          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap">Status</th>
-        </tr></thead>
-      </table>
-    </div>
   </div>
-  <div class="ranking-scroll" style="padding-top:0">
-    <div style="border:0.5px solid #c0dcc0;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;background:#fff">
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <tbody id="ah-tbody"><tr><td colspan="7" class="status-msg">Selecione o mês.</td></tr></tbody>
-      </table>
+  <div class="ranking-scroll" style="padding:0 20px 16px">
+    <div style="border:0.5px solid #c0dcc0;border-radius:8px;overflow:hidden;background:#fff;display:flex;flex-direction:column">
+      <div class="rank-card-hdr" style="flex-shrink:0">
+        <span>☰ Resumo por leiturista</span>
+        <span id="ah-count" style="font-size:11px;color:#90c090"></span>
+      </div>
+      <div style="overflow:auto;flex:1">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+          <colgroup>
+            <col style="width:90px">
+            <col style="width:180px">
+            <col style="width:110px">
+            <col style="width:120px">
+            <col style="width:120px">
+            <col style="width:120px">
+            <col style="width:90px">
+          </colgroup>
+          <thead>
+            <tr>
+              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Matrícula</th>
+              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Nome</th>
+              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Início cedo</th>
+              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Término tardio</th>
+              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Hora mais cedo</th>
+              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d;position:sticky;top:0;z-index:1">Hora mais tarde</th>
+              <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;position:sticky;top:0;z-index:1">Status</th>
+            </tr>
+          </thead>
+          <tbody id="ah-tbody"><tr><td colspan="7" class="status-msg">Selecione o mês.</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -557,6 +575,36 @@ async function processarLote(){
 }
 
 // ── ALERTA DE HORÁRIO ─────────────────────────────────────────────
+let ahDados = []; // cache para filtro de status
+
+function renderAhTabela(lista){
+  const labelStatus={critico:'Crítico',atencao:'Atenção',normal:'Normal'};
+  const tbody=document.getElementById('ah-tbody');
+  document.getElementById('ah-count').textContent=`${lista.length} leiturista(s)`;
+  if(!lista.length){
+    tbody.innerHTML='<tr><td colspan="7" class="status-msg">Nenhum leiturista encontrado.</td></tr>';
+    return;
+  }
+  tbody.innerHTML=lista.map(d=>{
+    const corCedo=d.cedo>0?'color:#854f0b;font-weight:500':'';
+    const corTarde=d.tarde>0?'color:#a32d2d;font-weight:500':'';
+    return `<tr>
+      <td style="font-weight:500;padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8">${d.mat}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;font-size:12px">${d.nome}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;${corCedo}">${d.cedo} dia(s)</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;${corTarde}">${d.tarde} dia(s)</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;font-family:monospace;${d.horaMaisCedo?'color:#854f0b;font-weight:500':''}">${d.horaMaisCedo||'—'}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;font-family:monospace;${d.horaMaisTarde?'color:#a32d2d;font-weight:500':''}">${d.horaMaisTarde||'—'}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center"><span class="b-${d.status}">${labelStatus[d.status]}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function filtrarAlertaHorario(){
+  const filtro=document.getElementById('ah-status').value;
+  const lista=filtro?ahDados.filter(d=>d.status===filtro):ahDados;
+  renderAhTabela(lista);
+}
 async function carregarAlertaHorario(){
   const mes=document.getElementById('ah-mes').value;
   const base=document.getElementById('ah-base').value;
@@ -628,45 +676,32 @@ async function carregarAlertaHorario(){
     return critico?'critico':atencao?'atencao':'normal';
   };
 
-  // Filtrar só quem tem algum alerta
-  const lista=matsIds
+  // Filtrar só quem tem algum alerta e montar lista com status
+  ahDados = matsIds
     .filter(m=>acum[m]&&(acum[m].cedo>0||acum[m].tarde>0))
     .sort((a,b)=>{
       const ord={critico:0,atencao:1,normal:2};
-      return (ord[getStatus(a)]||2)-(ord[getStatus(b)]||2)||(acum[b].cedo+acum[b].tarde)-(acum[a].cedo+acum[a].tarde);
-    });
+      const sa=getStatus(a), sb2=getStatus(b);
+      return (ord[sa]||2)-(ord[sb2]||2)||(acum[b].cedo+acum[b].tarde)-(acum[a].cedo+acum[a].tarde);
+    })
+    .map(mat=>({
+      mat, nome:matMap[mat]?.nome||mat,
+      cedo:acum[mat].cedo, tarde:acum[mat].tarde,
+      horaMaisCedo:acum[mat].horaMaisCedo, horaMaisTarde:acum[mat].horaMaisTarde,
+      status:getStatus(mat)
+    }));
 
   // KPIs
-  const totalCedo=lista.reduce((s,m)=>s+(acum[m]?.cedo||0),0);
-  const totalTarde=lista.reduce((s,m)=>s+(acum[m]?.tarde||0),0);
+  const totalCedo=ahDados.reduce((s,d)=>s+d.cedo,0);
+  const totalTarde=ahDados.reduce((s,d)=>s+d.tarde,0);
   document.getElementById('ah-kpis').innerHTML=`
-    <div class="kpi"><div class="kpi-label">Em alerta</div><div class="kpi-value" style="color:#a32d2d">${lista.length}</div></div>
+    <div class="kpi"><div class="kpi-label">Em alerta</div><div class="kpi-value" style="color:#a32d2d">${ahDados.length}</div></div>
     <div class="kpi"><div class="kpi-label">Dias início cedo</div><div class="kpi-value" style="color:#854f0b">${totalCedo}</div></div>
     <div class="kpi"><div class="kpi-label">Dias término tardio</div><div class="kpi-value" style="color:#a32d2d">${totalTarde}</div></div>`;
-  document.getElementById('ah-count').textContent=`${lista.length} leiturista(s)`;
 
-  if(!lista.length){
-    tbody.innerHTML='<tr><td colspan="7" class="status-msg">Nenhum leiturista fora do horário no período.</td></tr>';
-    return;
-  }
-
-  const labelStatus={critico:'Crítico',atencao:'Atenção',normal:'Normal'};
-  tbody.innerHTML=lista.map(mat=>{
-    const d=acum[mat];
-    const st=getStatus(mat);
-    const nome=matMap[mat]?.nome||mat;
-    const corCedo=d.cedo>0?'color:#854f0b;font-weight:500':'';
-    const corTarde=d.tarde>0?'color:#a32d2d;font-weight:500':'';
-    return `<tr>
-      <td style="font-weight:500;padding:9px 14px;border-bottom:0.5px solid #e0eee0">${mat}</td>
-      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;font-size:12px;color:#1a2a1a">${nome}</td>
-      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;${corCedo}">${d.cedo} dia(s)</td>
-      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;${corTarde}">${d.tarde} dia(s)</td>
-      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;font-family:monospace;${d.horaMaisCedo?'color:#854f0b;font-weight:500':''}">${d.horaMaisCedo||'—'}</td>
-      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center;font-family:monospace;${d.horaMaisTarde?'color:#a32d2d;font-weight:500':''}">${d.horaMaisTarde||'—'}</td>
-      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center"><span class="b-${st}">${labelStatus[st]}</span></td>
-    </tr>`;
-  }).join('');
+  // Reset filtro de status e renderizar
+  document.getElementById('ah-status').value='';
+  filtrarAlertaHorario();
 }
 
 async function iniciarFiltros(){
