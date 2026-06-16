@@ -1303,10 +1303,12 @@ async function processarMatriculas(){
     const buf=await fileMat.arrayBuffer();
     const wb=XLSX.read(buf,{type:'array'});
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:null});
+    const excelToDate=n=>{ if(!n||isNaN(n)) return null; const d=new Date(Math.round((n-25569)*86400*1000)); return d.toISOString().slice(0,10); };
     const recs=rows.map(r=>({
       matricula:r.MATRICULA!=null?String(r.MATRICULA).trim():null,
       nome_leiturista:r.NOME_LEITURISTA||null,
       funcao:r.FUNCAO||null,base:r.BASE||null,situacao:r.SITUACAO||null,
+      data_admissao:r.ADMISSAO?excelToDate(r.ADMISSAO):null,
     })).filter(r=>r.matricula);
     await sb.from('matriculas').delete().neq('matricula','__x__');
     const {error}=await sb.from('matriculas').insert(recs);
