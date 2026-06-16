@@ -1104,7 +1104,7 @@ async function processarCemig(fileOverride){
               instalacao:v0, medidor, oc_str:String(oc), reg,
               qtd_digitacao:qtdDig, responsabilidade:resp,
               ul, rz, local_cod:lc, data:mesRefImp||dataStr, matricula:mat,
-              endereco:'',
+              endereco:'', mes_ref:mesRefImp||null,
             });
             ultimoImpedimento=grupos[chave].impedimentos[grupos[chave].impedimentos.length-1];
           }
