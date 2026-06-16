@@ -1155,9 +1155,11 @@ async function processarCemig(fileOverride){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Delete por mes_ref + ul: cada UL pertence a um único RZ
-    // Re-upload do mesmo RZ substitui só as ULs desse arquivo
-    const ulsNovas=[...new Set(registros.map(r=>r.ul).filter(Boolean))];
+    // Delete por mes_ref + ul: usa todas as ULs do arquivo
+    // g.uls contém todas as ULs de cada leiturista no dia
+    const ulsNovas=[...new Set(
+      Object.values(grupos).flatMap(g=>g.uls?[...g.uls]:(g.ul?[g.ul]:[]))
+    )].filter(Boolean);
     const LOTE_DEL=100;
     for(let i=0;i<ulsNovas.length;i+=LOTE_DEL){
       const loteU=ulsNovas.slice(i,i+LOTE_DEL);
@@ -1212,6 +1214,7 @@ async function processarCemig(fileOverride){
           endereco:r.endereco, qtd_digitacao:r.qtd_digitacao,
           responsabilidade:r.responsabilidade, reg:r.reg||null,
           cidade:lb.cidade||null, base:lb.base||null,
+          mes_ref:mesRefImp||null,
         };
       });
 
