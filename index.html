@@ -251,7 +251,10 @@ td.rota-col{text-align:left;font-size:14px}
     <!-- Faixa verde congelada -->
     <div class="rank-card-hdr" style="border-radius:8px 8px 0 0">
       <span>☰ Resumo por leiturista</span>
-      <span id="ah-count" style="font-size:11px;color:#90c090"></span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span id="ah-count" style="font-size:11px;color:#90c090"></span>
+        <button onclick="downloadExcelAlerta()" style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">⬇ Excel</button>
+      </div>
     </div>
     <div style="background:#1a4a1a;overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
@@ -578,7 +581,29 @@ async function processarLote(){
 }
 
 // ── ALERTA DE HORÁRIO ─────────────────────────────────────────────
-let ahDados = []; // cache para filtro de status
+let ahDados = [];
+
+function downloadExcelAlerta(){
+  const filtro=document.getElementById('ah-status').value;
+  const lista=filtro?ahDados.filter(d=>d.status===filtro):ahDados;
+  if(!lista.length){alert('Nenhum dado para exportar.');return;}
+  const labelStatus={critico:'Crítico',atencao:'Atenção',normal:'Normal'};
+  const rows=lista.map(d=>({
+    'Base':d.base||'—',
+    'Matrícula':d.mat,
+    'Nome':d.nome,
+    'Início cedo (dias)':d.cedo,
+    'Término tardio (dias)':d.tarde,
+    'Hora mais cedo':d.horaMaisCedo||'—',
+    'Hora mais tarde':d.horaMaisTarde||'—',
+    'Status':labelStatus[d.status]||d.status
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Alerta Horário');
+  const mes=document.getElementById('ah-mes').value.replace('/','');
+  XLSX.writeFile(wb,`alerta_horario_${mes}.xlsx`);
+} // cache para filtro de status
 
 function renderAhTabela(lista){
   const labelStatus={critico:'Crítico',atencao:'Atenção',normal:'Normal'};
