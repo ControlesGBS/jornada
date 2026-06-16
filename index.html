@@ -179,7 +179,7 @@ td.rota-col{text-align:left;font-size:14px}
   </div>
   <div class="painel-tabela">
     <div class="twrap">
-      <div class="twrap-hdr"><span>☰ Jornada detalhada</span></div>
+      <div class="twrap-hdr" style="display:flex;justify-content:space-between;align-items:center"><span>☰ Jornada detalhada</span><button onclick="downloadExcelJornada()" style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">⬇ Excel</button></div>
       <div class="tabela-scroll">
         <table>
           <thead><tr>
@@ -810,6 +810,18 @@ function tipoRota(n){
   return {l:'Rural',c:'b-rur'};
 }
 
+let linhasExportJornada=[];
+
+function downloadExcelJornada(){
+  if(!linhasExportJornada.length){alert('Nenhum dado para exportar.');return;}
+  const ws=XLSX.utils.json_to_sheet(linhasExportJornada);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Jornada');
+  const mat=document.getElementById('f-mat').value.split('—')[0].trim();
+  const mes=document.getElementById('f-mes').value.replace('/','');
+  XLSX.writeFile(wb,`jornada_${mat}_${mes}.xlsx`);
+}
+
 function renderTabela(){
   const mat=document.getElementById('f-mat').value;
   const mes=document.getElementById('f-mes').value;
@@ -921,6 +933,51 @@ function renderTabela(){
       <td>${totalImpDia||'—'}</td>
       <td class="rota-col">${badges}</td>
     </tr>`);
+  }
+
+  // Montar dados para exportação Excel
+  linhasExportJornada=[];
+  for(let d=1;d<=diasMes;d++){
+    const key=`${aa}-${mm}-${String(d).padStart(2,'0')}`;
+    const sem=(diaSem0+d-1)%7;
+    const grupo=porData[key];
+    if(!grupo){ linhasExportJornada.push({'Mat.':mat,'RZ':'—','Dia':d,'Sem.':SEMANAS[sem],'H. inicial':'','H. final':'','Intervalo':'','H. trab.':'','Leituras':0,'Imp. GBS':'','Imp. CEMIG':'','Total imp.':'','Tipo rota':''}); continue; }
+    let todasHoras=[],totalLeitDia=0,todasRotas=[],todosRzs=[];
+    grupo.linhas.forEach(ln=>{
+      const h=JSON.parse(ln.horas_json||'[]');
+      todasHoras=[...todasHoras,...h];
+      totalLeitDia+=ln.qtd_leituras||0;
+      const rt=JSON.parse(ln.rotas_json||'[]');
+      todasRotas=[...todasRotas,...rt];
+      const rz=ln.rz?ln.rz.split(','):[];
+      todosRzs=[...todosRzs,...rz];
+    });
+    todasHoras=[...new Set(todasHoras)].sort();
+    todosRzs=[...new Set(todosRzs)].sort();
+    const hi=todasHoras[0]||'';
+    const hf=todasHoras[todasHoras.length-1]||'';
+    const limiar=parseInt(document.getElementById('slicer').value);
+    const gapsDia=[];
+    for(let i=1;i<todasHoras.length;i++){const gap=toMin(todasHoras[i])-toMin(todasHoras[i-1]);if(gap>=5)gapsDia.push(gap);}
+    const intervalo=gapsDia.filter(g=>g>=limiar).reduce((a,b)=>a+b,0);
+    const trab=Math.max(0,(toMin(hf)-toMin(hi))-intervalo);
+    const impGbs=grupo.linhas.reduce((a,ln)=>a+(ln.imp_gbs||0),0);
+    const impCemig=grupo.linhas.reduce((a,ln)=>a+(ln.imp_cemig||0),0);
+    const rotas=[...new Set(todasRotas)];
+    const vistos=new Map();
+    rotas.forEach(rl=>{const[rt,lc]=rl.split('|');const tp=tipoRota(rt);const cidade=localMap[lc]||lc;const k=`${tp.l}|${cidade}`;if(!vistos.has(k))vistos.set(k,{tp,cidade});});
+    const tipoStr=[...vistos.values()].map(({tp,cidade})=>`${tp.l} (${cidade})`).join(', ');
+    linhasExportJornada.push({
+      'Mat.':mat,'RZ':todosRzs.join(','),'Dia':d,'Sem.':SEMANAS[sem],
+      'H. inicial':hi,'H. final':hf,
+      'Intervalo':intervalo>0?toHM(intervalo):'—',
+      'H. trab.':toHM(trab),
+      'Leituras':totalLeitDia,
+      'Imp. GBS':impGbs||'',
+      'Imp. CEMIG':impCemig||'',
+      'Total imp.':(impGbs+impCemig)||'',
+      'Tipo rota':tipoStr
+    });
   }
 
   document.getElementById('tbody').innerHTML=rows.join('');
