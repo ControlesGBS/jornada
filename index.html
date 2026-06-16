@@ -1162,7 +1162,7 @@ async function processarCemig(fileOverride){
     const matsNovas=[...new Set(registros.map(r=>r.matricula))];
     const datasNovas=[...new Set(registros.map(r=>r.data))];
     const {data:existentes}=await sb.from('jornada').select('id,matricula,data,rz')
-      .in('matricula',matsNovas).in('data',datasNovas);
+      .in('matricula',matsNovas).in('data',datasNovas).eq('mes_ref',mesRefImp);
     // Apagar só os registros que têm o mesmo RZ do arquivo atual
     const idsParaDeletar=(existentes||[])
       .filter(e=>{
@@ -1222,9 +1222,9 @@ async function processarCemig(fileOverride){
         };
       });
 
-      // Deletar impedimentos das mesmas ULs e reinserir
+      // Deletar impedimentos das mesmas ULs+mes_ref (nao afeta outros meses)
       const ulsImp=[...new Set(impsEnriq.map(r=>r.ul))];
-      for(const u of ulsImp) await sb.from('impedimentos').delete().eq('ul',u);
+      for(const u of ulsImp) await sb.from('impedimentos').delete().eq('ul',u).eq('mes_ref',mesRefImp);
 
       const LOTE2=200;
       for(let i=0;i<impsEnriq.length;i+=LOTE2){
