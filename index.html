@@ -1155,18 +1155,15 @@ async function processarCemig(fileOverride){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Deletar registros do mesmo mes_ref+matricula+data antes de inserir
-    // Simples e seguro: cada arquivo substitui exatamente seus próprios registros
-    const matsNovas=[...new Set(registros.map(r=>r.matricula))];
-    const datasNovas=[...new Set(registros.map(r=>r.data))];
-    // Deletar em lotes de matriculas para evitar query muito grande
-    const LOTE_DEL=50;
-    for(let i=0;i<matsNovas.length;i+=LOTE_DEL){
-      const loteM=matsNovas.slice(i,i+LOTE_DEL);
+    // Delete por mes_ref + ul: cada UL pertence a um único RZ
+    // Re-upload do mesmo RZ substitui só as ULs desse arquivo
+    const ulsNovas=[...new Set(registros.map(r=>r.ul).filter(Boolean))];
+    const LOTE_DEL=100;
+    for(let i=0;i<ulsNovas.length;i+=LOTE_DEL){
+      const loteU=ulsNovas.slice(i,i+LOTE_DEL);
       await sb.from('jornada').delete()
         .eq('mes_ref',mesRefImp)
-        .in('matricula',loteM)
-        .in('data',datasNovas);
+        .in('ul',loteU);
     }
 
     // Inserir novos registros
