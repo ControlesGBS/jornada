@@ -1005,7 +1005,8 @@ async function processarCemig(fileOverride){
           // Contar todas as instalações do arquivo para o total do mês (independe da data)
           if(mat) totalPorMat[mat]=(totalPorMat[mat]||0)+1;
           const chave=`${mat}|${dataStr}`;
-          if(!grupos[chave]) grupos[chave]={mat,data:dataStr,ul,rzs:[],lc_rotas:[],horas:[],imp_gbs:0,imp_cemig:0};
+          if(!grupos[chave]) grupos[chave]={mat,data:dataStr,ul,uls:new Set(),rzs:[],lc_rotas:[],horas:[],imp_gbs:0,imp_cemig:0};
+          if(ul) grupos[chave].uls.add(ul);
           grupos[chave].horas.push(hora);
           grupos[chave].rzs.push(rz);
           grupos[chave].lc_rotas.push(`${rota}|${lc}`);
@@ -1174,7 +1175,8 @@ async function processarCemig(fileOverride){
     if(mesRefImp){
       const ulLeitMap={};
       Object.values(grupos).forEach(g=>{
-        if(g.ul && g.mat) ulLeitMap[g.ul]=g.mat;
+        if(g.mat && g.uls && g.uls.size) g.uls.forEach(u=>{ ulLeitMap[u]=g.mat; });
+        else if(g.ul && g.mat) ulLeitMap[g.ul]=g.mat; // fallback
       });
       const ulLeitRecs=Object.entries(ulLeitMap).map(([ul,matricula])=>({
         mes_ref:mesRefImp, ul, rz:ul.slice(0,2), matricula
