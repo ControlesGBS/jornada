@@ -649,7 +649,7 @@ async function carregarAlertaHorario(){
   // Buscar matrículas
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
   const baseAh=PERFIL_BASE||base;
-  if(baseAh) qMat=qMat.eq('base',baseAh);
+  if(baseAh) qMat=qMat.ilike('base',baseAh);
   const {data:mats}=await qMat;
   const matMap={};
   (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista||r.matricula, base:r.base||'—'});
@@ -780,7 +780,7 @@ async function iniciarFiltros(){
 async function carregarMatriculas(){
   const base=PERFIL_BASE||document.getElementById('f-base').value;
   let q=sb.from('matriculas').select('matricula,nome_leiturista').eq('situacao','Ativo').order('nome_leiturista');
-  if(base) q=q.eq('base',base);
+  if(base) q=q.ilike('base',base);
   const {data}=await q;
   const sel=document.getElementById('f-mat');
   const atual=sel.value;
@@ -1354,7 +1354,7 @@ async function carregarRanking(){
   const mesRef=`${aa}-${mm}-01`;
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
   const baseRk=PERFIL_BASE||base;
-  if(baseRk) qMat=qMat.eq('base',baseRk);
+  if(baseRk) qMat=qMat.ilike('base',baseRk);
   const {data:mats}=await qMat;
   const matMap={};
   (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista,base:r.base});
@@ -1417,7 +1417,7 @@ async function carregarAlertaInicio(){
   aiBody.innerHTML='<div class="vazio-msg">Carregando...</div>';
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
   const baseAi=PERFIL_BASE||base;
-  if(baseAi) qMat=qMat.eq('base',baseAi);
+  if(baseAi) qMat=qMat.ilike('base',baseAi);
   const {data:mats}=await qMat;
   const matMap2={};
   (mats||[]).forEach(r=>matMap2[r.matricula]={nome:r.nome_leiturista});
@@ -1469,7 +1469,7 @@ async function carregarMeta(){
   document.getElementById('mt-rur-body').innerHTML='<div class="vazio-msg">Carregando...</div>';
   let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
   const baseMt=PERFIL_BASE||base;
-  if(baseMt) qMat=qMat.eq('base',baseMt);
+  if(baseMt) qMat=qMat.ilike('base',baseMt);
   const {data:mats}=await qMat;
   const matMap3={};
   (mats||[]).forEach(r=>matMap3[r.matricula]={nome:r.nome_leiturista});
