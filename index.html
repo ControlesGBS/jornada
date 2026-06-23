@@ -25,7 +25,7 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .slicer-box label{color:#4a7a4a;font-size:17px;white-space:nowrap;margin:0;font-weight:500}
 .slicer-box span{color:#1a4a1a;font-size:13px;font-weight:500;min-width:40px}
 .slicer-box input[type=range]{height:20px;width:80px;accent-color:#2d7a2d}
-.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-bottom:10px}
+.kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:10px}
 .kpi{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:10px 14px;text-align:center}
 .kpi-label{font-size:10px;color:#4a7a4a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
 .kpi-value{font-size:22px;font-weight:500;color:#1a4a1a}
@@ -175,6 +175,7 @@ td.rota-col{text-align:left;font-size:14px}
       <div class="kpi"><div class="kpi-label">Média de leituras</div><div class="kpi-value">—</div></div>
       <div class="kpi"><div class="kpi-label">Total de leituras</div><div class="kpi-value">—</div></div>
       <div class="kpi"><div class="kpi-label">Impedimentos GBS</div><div class="kpi-value">—</div></div>
+      <div class="kpi"><div class="kpi-label">Produtividade/hora</div><div class="kpi-value">—</div></div>
     </div>
   </div>
   <div class="painel-tabela">
@@ -1010,13 +1011,15 @@ function renderTabela(){
   const mi=diasTrab>0?Math.round(somaIni/diasTrab):0;
   const mt=diasTrab>0?Math.round(totalTrabMin/diasTrab):0;
   const ml=diasTrab>0?Math.round(totalLeit/diasTrab):0;
+  const leiturasPorHora=totalTrabMin>0?(totalLeit/(totalTrabMin/60)):0;
   document.getElementById('kpis').innerHTML=`
     <div class="kpi"><div class="kpi-label">Dias trabalhados</div><div class="kpi-value">${diasTrab}</div></div>
     <div class="kpi"><div class="kpi-label">Média horas trabalhadas</div><div class="kpi-value">${toHM(mt)}</div></div>
     <div class="kpi"><div class="kpi-label">Média início trabalho</div><div class="kpi-value">${toHM(mi)}</div></div>
     <div class="kpi"><div class="kpi-label">Média de leituras</div><div class="kpi-value">${ml}</div></div>
     <div class="kpi"><div class="kpi-label">Total de leituras</div><div class="kpi-value">${totalLeit.toLocaleString('pt-BR')}</div></div>
-    <div class="kpi"><div class="kpi-label">Impedimentos GBS</div><div class="kpi-value">${totalImpGbs.toLocaleString('pt-BR')}</div></div>`;
+    <div class="kpi"><div class="kpi-label">Impedimentos GBS</div><div class="kpi-value">${totalImpGbs.toLocaleString('pt-BR')}</div></div>
+    <div class="kpi"><div class="kpi-label">Produtividade/hora</div><div class="kpi-value">${leiturasPorHora.toLocaleString('pt-BR',{maximumFractionDigits:1})}</div></div>`;
   document.getElementById('totais').innerHTML=`
     <div><span>Total leituras:</span>${totalLeit.toLocaleString('pt-BR')}</div>
     <div><span>Total horas trabalhadas:</span>${toHM(totalTrabMin)}</div>
