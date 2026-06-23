@@ -197,6 +197,7 @@ td.rota-col{text-align:left;font-size:14px}
             <th>Imp. CEMIG</th>
             <th>Total imp.</th>
             <th>Tipo rota (local)</th>
+            <th>Intervalos ≥30min</th>
           </tr></thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -881,7 +882,7 @@ function renderTabela(){
       rows.push(`<tr class="sem-trab">
         <td>${mat}</td><td>—</td><td>${d}</td>
         <td style="font-size:11px;${corDia}">${SEMANAS[sem]}</td>
-        <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`);
+        <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`);
       continue;
     }
 
@@ -911,6 +912,7 @@ function renderTabela(){
       if(gap>=5) gapsDia.push(gap);
     }
     const intervalo=gapsDia.filter(g=>g>=limiar).reduce((a,b)=>a+b,0);
+    const qtdIntervalos30=gapsDia.filter(g=>g>=30).length;
     const trab=Math.max(0,spanDia-intervalo);
     const rzStr=todosRzs.join(',');
 
@@ -958,6 +960,7 @@ function renderTabela(){
       <td>${impCemigDia||'—'}</td>
       <td>${totalImpDia||'—'}</td>
       <td class="rota-col">${badges}</td>
+      <td>${qtdIntervalos30||'—'}</td>
     </tr>`);
   }
 
@@ -967,7 +970,7 @@ function renderTabela(){
     const key=`${aa}-${mm}-${String(d).padStart(2,'0')}`;
     const sem=(diaSem0+d-1)%7;
     const grupo=porData[key];
-    if(!grupo){ linhasExportJornada.push({'Mat.':mat,'RZ':'—','Dia':d,'Sem.':SEMANAS[sem],'H. inicial':'','H. final':'','Intervalo':'','H. trab.':'','Leituras':0,'Imp. GBS':'','Imp. CEMIG':'','Total imp.':'','Tipo rota':''}); continue; }
+    if(!grupo){ linhasExportJornada.push({'Mat.':mat,'RZ':'—','Dia':d,'Sem.':SEMANAS[sem],'H. inicial':'','H. final':'','Intervalo':'','H. trab.':'','Leituras':0,'Imp. GBS':'','Imp. CEMIG':'','Total imp.':'','Tipo rota':'','Intervalos ≥30min':''}); continue; }
     let todasHoras=[],totalLeitDia=0,todasRotas=[],todosRzs=[];
     grupo.linhas.forEach(ln=>{
       const h=JSON.parse(ln.horas_json||'[]');
@@ -986,6 +989,7 @@ function renderTabela(){
     const gapsDia=[];
     for(let i=1;i<todasHoras.length;i++){const gap=toMin(todasHoras[i])-toMin(todasHoras[i-1]);if(gap>=5)gapsDia.push(gap);}
     const intervalo=gapsDia.filter(g=>g>=limiar).reduce((a,b)=>a+b,0);
+    const qtdIntervalos30=gapsDia.filter(g=>g>=30).length;
     const trab=Math.max(0,(toMin(hf)-toMin(hi))-intervalo);
     const impGbs=grupo.linhas.reduce((a,ln)=>a+(ln.imp_gbs||0),0);
     const impCemig=grupo.linhas.reduce((a,ln)=>a+(ln.imp_cemig||0),0);
@@ -1002,7 +1006,8 @@ function renderTabela(){
       'Imp. GBS':impGbs||'',
       'Imp. CEMIG':impCemig||'',
       'Total imp.':(impGbs+impCemig)||'',
-      'Tipo rota':tipoStr
+      'Tipo rota':tipoStr,
+      'Intervalos ≥30min':qtdIntervalos30||''
     });
   }
 
