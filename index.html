@@ -626,9 +626,11 @@ function renderAhTabela(lista){
     const detalheLinhas=ocorrencias.map(o=>{
       const dataFmt=o.data?new Date(o.data+'T12:00:00').toLocaleDateString('pt-BR'):'—';
       const label=o.tipo==='cedo'?'Início cedo':'Término tardio';
-      const cor=o.tipo==='cedo'?'#854f0b':'#a32d2d';
-      return `<span style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:0.5px solid #e0eee0;border-radius:6px;padding:4px 10px;margin:3px;font-size:11px">
-        <strong>${dataFmt}</strong> <span style="color:${cor}">${label}</span> <span style="font-family:monospace">${o.hora}</span>
+      const fundo=o.tipo==='cedo'?'#faeeda':'#eaf3de';
+      const borda=o.tipo==='cedo'?'#e8cd9a':'#c0dcc0';
+      const cor=o.tipo==='cedo'?'#854f0b':'#27500a';
+      return `<span style="display:inline-flex;align-items:center;gap:6px;background:${fundo};border:0.5px solid ${borda};border-radius:6px;padding:4px 10px;margin:3px;font-size:11px">
+        <strong style="color:${cor}">${dataFmt}</strong> <span style="color:${cor}">${label}</span> <span style="font-family:monospace;color:${cor}">${o.hora}</span>
       </span>`;
     }).join('');
     return `<tr>
