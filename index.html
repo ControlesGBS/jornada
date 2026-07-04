@@ -363,7 +363,7 @@ td.rota-col{text-align:left;font-size:14px}
     </div>
 
     <div class="card" style="grid-column:1/-1;background:#fff8e6;border-color:#fac775" id="card-fechar-mes">
-      <h3 style="color:#633806">Fechar mês — Meta de leituras e Início tardio</h3>
+      <h3 style="color:#633806">Fechar mês — Meta de leituras, Início tardio e Término tardio</h3>
       <p style="color:#854f0b">Calcula a média do mês selecionado e dispara emails de tratativa para os supervisores quando necessário.</p>
       <div style="display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap">
         <div>
@@ -1607,7 +1607,7 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
   const cfg=await getConfig();
   if(!cfg) return;
   // Verificar pausa global
-  const pausaMap={impedimentos:cfg.impedimentos_email_pausado,erros:cfg.erros_email_pausado,meta:cfg.meta_email_pausado,inicio_tardio:cfg.inicio_tardio_email_pausado};
+  const pausaMap={impedimentos:cfg.impedimentos_email_pausado,erros:cfg.erros_email_pausado,meta:cfg.meta_email_pausado,inicio_tardio:cfg.inicio_tardio_email_pausado,termino_tardio:cfg.termino_tardio_email_pausado};
   if(pausaMap[tipo]) return;
   // Verificar se já disparou esse valor
   if(valorDisparado!=null){
@@ -1637,7 +1637,7 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
   }
   // Enviar email
   const link=`${location.origin}/controles/tratativas/responder.html?id=${trat?.id}`;
-  const tipoLabel={impedimentos:'Impedimentos GBS',erros:'Erros de leitura',meta:'Meta de leituras',inicio_tardio:'Início tardio'}[tipo]||tipo;
+  const tipoLabel={impedimentos:'Impedimentos GBS',erros:'Erros de leitura',meta:'Meta de leituras',inicio_tardio:'Início tardio',termino_tardio:'Término tardio'}[tipo]||tipo;
   await enviarEmailTratativa(
     sup.email,
     'Gestão de Controles - Ação atribuída a você',
@@ -1729,7 +1729,7 @@ async function verificarGatilhosErros(mesRef){
   }
 }
 
-// ── FECHAR MÊS (meta + início tardio) ────────────────────────────
+// ── FECHAR MÊS (meta + início tardio + término tardio) ────────────
 async function fecharMes(){
   const mes=document.getElementById('fechar-mes-sel').value;
   if(!mes) return;
@@ -1742,14 +1742,14 @@ async function fecharMes(){
     const di=`${aa}-${mm}-01`;
     const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
     // Buscar jornada do mês
-    const {data:jornada}=await sb.from('jornada').select('matricula,rz,qtd_leituras,hora_inicial')
+    const {data:jornada}=await sb.from('jornada').select('matricula,rz,qtd_leituras,hora_inicial,hora_final')
       .gte('data',di).lte('data',df);
     if(!jornada||!jornada.length){prog.textContent='Nenhum dado encontrado para esse mês.';btn.disabled=false;return;}
     // Agrupar por leiturista
     const acum={};
     jornada.forEach(r=>{
       const mat=r.matricula;
-      if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0,somaInicio:0,diasInicio:0};
+      if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0,somaInicio:0,diasInicio:0,somaTermino:0,diasTermino:0};
       const n=parseInt(String(r.rz||'').split('.')[0]);
       const leit=r.qtd_leituras||0;
       if(leit<10) return;
@@ -1759,6 +1759,11 @@ async function fecharMes(){
         const [hh,mi]=(r.hora_inicial||'00:00').split(':').map(Number);
         acum[mat].somaInicio+=hh*60+mi;
         acum[mat].diasInicio++;
+      }
+      if(r.hora_final){
+        const [hh,mi]=(r.hora_final||'00:00').split(':').map(Number);
+        acum[mat].somaTermino+=hh*60+mi;
+        acum[mat].diasTermino++;
       }
     });
     // Buscar nomes e bases
@@ -1794,6 +1799,19 @@ async function fecharMes(){
           const mi=String(mediaInicio%60).padStart(2,'0');
           await dispararTratativa({tipo:'inicio_tardio',matricula:mat,nomeLeiturista:info.nome,base:info.base,mesRef:mes,
             detalhe:`Média de início ${hh}:${mi} (limite: ${cfg.inicio_tardio_hora})`,valorDisparado:null});
+          disparosFeitos++;
+        }
+      }
+      // Término tardio
+      if(cfg.termino_tardio_ativo && v.diasTermino>0){
+        const mediaTermino=Math.round(v.somaTermino/v.diasTermino);
+        const [limH,limM]=(cfg.termino_tardio_hora||'18:00').split(':').map(Number);
+        const limMin=limH*60+limM;
+        if(mediaTermino>limMin){
+          const hh=String(Math.floor(mediaTermino/60)).padStart(2,'0');
+          const mi=String(mediaTermino%60).padStart(2,'0');
+          await dispararTratativa({tipo:'termino_tardio',matricula:mat,nomeLeiturista:info.nome,base:info.base,mesRef:mes,
+            detalhe:`Média de término ${hh}:${mi} (limite: ${cfg.termino_tardio_hora})`,valorDisparado:null});
           disparosFeitos++;
         }
       }
