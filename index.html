@@ -698,21 +698,34 @@ async function dispararSelecionadosAlerta(){
   const btn=document.getElementById('ah-btn-disparar');
   btn.disabled=true;
   let enviados=0;
+  const falhas=[];
   for(const mat of [...ahSelecionados]){
     const d=ahDados.find(x=>x.mat===mat);
     if(!d) continue;
+    let algumEnviado=false;
     if(d.cedo>0){
-      await dispararTratativa({tipo:'inicio_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
+      const r=await dispararTratativa({tipo:'inicio_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
         detalhe:`Início mais cedo no mês: ${d.horaMaisCedo} (${d.cedo} dia(s) fora da janela)`,valorDisparado:1,prazoDiasOverride:prazoDias});
+      if(r.ok) algumEnviado=true; else if(r.motivo!=='ja_enviado') falhas.push(`${d.nome} (início) — ${r.motivo}`);
     }
     if(d.tarde>0){
-      await dispararTratativa({tipo:'termino_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
+      const r=await dispararTratativa({tipo:'termino_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
         detalhe:`Término mais tarde no mês: ${d.horaMaisTarde} (${d.tarde} dia(s) fora da janela)`,valorDisparado:1,prazoDiasOverride:prazoDias});
+      if(r.ok) algumEnviado=true; else if(r.motivo!=='ja_enviado') falhas.push(`${d.nome} (término) — ${r.motivo}`);
     }
-    enviados++;
+    if(algumEnviado) enviados++;
   }
   ahSelecionados.clear();
-  alert(`${enviados} tratativa(s) disparada(s).`);
+  const motivoTexto={sem_supervisor:'não encontrou supervisor ativo cadastrado para essa base',
+    sem_config:'configurações de tratativas não encontradas',email_pausado:'envio de e-mail está pausado nas Configurações'};
+  let msg=`${enviados} leiturista(s) com tratativa disparada.`;
+  if(falhas.length){
+    msg+=`\n\n⚠ ${falhas.length} falharam:\n`+falhas.map(f=>{
+      const [nomeParte,motivo]=f.split(' — ');
+      return `- ${nomeParte}: ${motivoTexto[motivo]||motivo}`;
+    }).join('\n');
+  }
+  alert(msg);
   await carregarAlertaHorario();
 }
 
@@ -1668,11 +1681,12 @@ async function carregarInfoAdmin(){
 // ── FUNÇÕES SMTP (via Supabase Edge Function) ─────────────────────
 async function enviarEmailTratativa(para, assunto, corpo){
   try{
-    await fetch(`${SUPABASE_URL}/functions/v1/enviar-email`,{
+    const r=await fetch(`${SUPABASE_URL}/functions/v1/enviar-email`,{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${SUPABASE_KEY}`},
       body:JSON.stringify({para,assunto,corpo})
     });
+    if(!r.ok) console.error('Falha ao enviar email, status:',r.status,await r.text());
   }catch(e){console.error('Erro email:',e);}
 }
 
@@ -1685,21 +1699,21 @@ async function getConfig(){
 // ── DISPARAR TRATATIVA ────────────────────────────────────────────
 async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,detalhe,valorDisparado,prazoDiasOverride}){
   const cfg=await getConfig();
-  if(!cfg) return;
+  if(!cfg) return {ok:false,motivo:'sem_config'};
   // Verificar pausa global
   const pausaMap={impedimentos:cfg.impedimentos_email_pausado,erros:cfg.erros_email_pausado,meta:cfg.meta_email_pausado,inicio_tardio:cfg.inicio_tardio_email_pausado,termino_tardio:cfg.termino_tardio_email_pausado};
-  if(pausaMap[tipo]) return;
+  if(pausaMap[tipo]) return {ok:false,motivo:'email_pausado'};
   // Verificar se já disparou esse valor
   if(valorDisparado!=null){
     const {data:ja}=await sb.from('tratativas_disparos').select('id')
       .eq('matricula',matricula).eq('mes_ref',mesRef).eq('tipo',tipo)
       .eq('valor_disparado',valorDisparado).eq('base',base||'').single();
-    if(ja) return;
+    if(ja) return {ok:false,motivo:'ja_enviado'};
   }
   // Buscar supervisor da base
   const {data:sup}=await sb.from('usuarios_portal').select('id,nome,email')
-    .eq('base',base).in('perfil',['supervisor']).eq('ativo',true).single();
-  if(!sup) return;
+    .filter('base','ilike',base).in('perfil',['supervisor']).eq('ativo',true).single();
+  if(!sup) return {ok:false,motivo:'sem_supervisor'};
   // Calcular prazo
   const prazo=new Date();
   prazo.setDate(prazo.getDate()+(prazoDiasOverride!=null?prazoDiasOverride:(cfg.prazo_dias||5)));
@@ -1737,6 +1751,7 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
       </div>
     </div>`
   );
+  return {ok:true};
 }
 
 // ── VERIFICAR GATILHOS APÓS UPLOAD (impedimentos) ─────────────────
