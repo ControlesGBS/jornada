@@ -697,28 +697,40 @@ async function dispararSelecionadosAlerta(){
   const prazoDias=parseInt(diasStr);
   const btn=document.getElementById('ah-btn-disparar');
   btn.disabled=true;
-  let enviados=0;
-  const falhas=[];
-  for(const mat of [...ahSelecionados]){
+
+  // Agrupar os selecionados por base
+  const porBase={};
+  [...ahSelecionados].forEach(mat=>{
     const d=ahDados.find(x=>x.mat===mat);
-    if(!d) continue;
-    let algumEnviado=false;
-    if(d.cedo>0){
-      const r=await dispararTratativa({tipo:'inicio_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
-        detalhe:`Início mais cedo no mês: ${d.horaMaisCedo} (${d.cedo} dia(s) fora da janela)`,valorDisparado:1,prazoDiasOverride:prazoDias});
-      if(r.ok) algumEnviado=true; else if(r.motivo!=='ja_enviado') falhas.push(`${d.nome} (início) — ${r.motivo}`);
-    }
-    if(d.tarde>0){
-      const r=await dispararTratativa({tipo:'termino_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
-        detalhe:`Término mais tarde no mês: ${d.horaMaisTarde} (${d.tarde} dia(s) fora da janela)`,valorDisparado:1,prazoDiasOverride:prazoDias});
-      if(r.ok) algumEnviado=true; else if(r.motivo!=='ja_enviado') falhas.push(`${d.nome} (término) — ${r.motivo}`);
-    }
-    if(algumEnviado) enviados++;
-  }
-  ahSelecionados.clear();
+    if(!d) return;
+    (porBase[d.base]=porBase[d.base]||[]).push(d);
+  });
+
   const motivoTexto={sem_supervisor:'não encontrou supervisor ativo cadastrado para essa base',
     sem_config:'configurações de tratativas não encontradas',email_pausado:'envio de e-mail está pausado nas Configurações'};
-  let msg=`${enviados} leiturista(s) com tratativa disparada.`;
+  let basesEnviadas=0, leituristasEnviados=0;
+  const falhas=[];
+
+  for(const [base,leituristas] of Object.entries(porBase)){
+    const lista=leituristas.map(d=>d.mat).join(', ');
+    const detalhe=`Verifique horários de início e término dos leituristas, matrículas: ${lista} no mês ${AH_MES_ATUAL}.`;
+    const r=await dispararTratativa({tipo:'alerta_horario',matricula:leituristas.map(d=>d.mat).join(','),
+      nomeLeiturista:leituristas.map(d=>d.nome).join(', '),base,mesRef:AH_MES_ATUAL,
+      detalhe,valorDisparado:null,prazoDiasOverride:prazoDias});
+    if(r.ok){
+      basesEnviadas++; leituristasEnviados+=leituristas.length;
+      // Registrar cada leiturista/tipo individualmente para travar o reenvio
+      for(const d of leituristas){
+        if(d.cedo>0) await sb.from('tratativas_disparos').insert({matricula:d.mat,mes_ref:AH_MES_ATUAL,tipo:'inicio_tardio',valor_disparado:1,base});
+        if(d.tarde>0) await sb.from('tratativas_disparos').insert({matricula:d.mat,mes_ref:AH_MES_ATUAL,tipo:'termino_tardio',valor_disparado:1,base});
+      }
+    } else {
+      falhas.push(`Base ${base} (${leituristas.length} leiturista(s)) — ${r.motivo}`);
+    }
+  }
+
+  ahSelecionados.clear();
+  let msg=`${basesEnviadas} base(s) notificada(s), ${leituristasEnviados} leiturista(s) no total.`;
   if(falhas.length){
     msg+=`\n\n⚠ ${falhas.length} falharam:\n`+falhas.map(f=>{
       const [nomeParte,motivo]=f.split(' — ');
@@ -1731,7 +1743,7 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
   }
   // Enviar email
   const link=`${location.origin}/controles/tratativas/responder.html?id=${trat?.id}`;
-  const tipoLabel={impedimentos:'Impedimentos GBS',erros:'Erros de leitura',meta:'Meta de leituras',inicio_tardio:'Início tardio',termino_tardio:'Término tardio'}[tipo]||tipo;
+  const tipoLabel={impedimentos:'Impedimentos GBS',erros:'Erros de leitura',meta:'Meta de leituras',inicio_tardio:'Início tardio',termino_tardio:'Término tardio',alerta_horario:'Verificar alerta de horário'}[tipo]||tipo;
   await enviarEmailTratativa(
     sup.email,
     'Gestão de Controles - Ação atribuída a você',
