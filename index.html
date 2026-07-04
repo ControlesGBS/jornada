@@ -62,6 +62,7 @@ td.rota-col{text-align:left;font-size:14px}
 .rank-card-hdr{background:#1a4a1a;padding:10px 16px;display:flex;justify-content:space-between;align-items:center}
 .rank-card-hdr span{color:#c0e8c0;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.3px}
 .b-critico{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;background:#fcebeb;color:#791f1f}
+.b-muito_critico{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;background:#791f1f;color:#fff}
 .b-atencao{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;background:#faeeda;color:#633806}
 .b-normal{display:inline-block;padding:2px 8px;border-radius:8px;font-size:11px;font-weight:500;background:#eaf3de;color:#27500a}
 .bar-row{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:0.5px solid #e8f4e8}
@@ -239,6 +240,7 @@ td.rota-col{text-align:left;font-size:14px}
         <label>Status</label>
         <select id="ah-status" onchange="filtrarAlertaHorario()" style="border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px">
           <option value="">Todos</option>
+          <option value="muito_critico">Muito Crítico</option>
           <option value="critico">Crítico</option>
           <option value="atencao">Atenção</option>
           <option value="normal">Normal</option>
@@ -255,17 +257,22 @@ td.rota-col{text-align:left;font-size:14px}
       <span>☰ Resumo por leiturista</span>
       <div style="display:flex;align-items:center;gap:12px">
         <span id="ah-count" style="font-size:11px;color:#90c090"></span>
+        <button id="ah-btn-disparar" onclick="dispararSelecionadosAlerta()" disabled
+          style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;opacity:.5">✈️ Disparar selecionados (0)</button>
         <button onclick="downloadExcelAlerta()" style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">⬇ Excel</button>
       </div>
     </div>
     <div style="background:#1a4a1a;overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
         <colgroup>
-          <col style="width:36px"><col style="width:110px"><col style="width:90px"><col style="width:180px">
-          <col style="width:110px"><col style="width:120px"><col style="width:120px">
-          <col style="width:120px"><col style="width:90px">
+          <col style="width:32px"><col style="width:36px"><col style="width:100px"><col style="width:85px"><col style="width:165px">
+          <col style="width:100px"><col style="width:110px"><col style="width:110px">
+          <col style="width:110px"><col style="width:90px">
         </colgroup>
         <thead><tr>
+          <th style="background:#1a4a1a;border-right:0.5px solid #2d6a2d;text-align:center">
+            <input type="checkbox" id="ah-check-all" onchange="toggleAhSelecionarTodos(this.checked)" title="Selecionar todos">
+          </th>
           <th style="background:#1a4a1a;border-right:0.5px solid #2d6a2d"></th>
           <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Base</th>
           <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Matrícula</th>
@@ -283,11 +290,11 @@ td.rota-col{text-align:left;font-size:14px}
     <div style="border:0.5px solid #c0dcc0;border-top:none;border-radius:0 0 8px 8px;overflow-x:auto;background:#fff">
       <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
         <colgroup>
-          <col style="width:36px"><col style="width:110px"><col style="width:90px"><col style="width:180px">
-          <col style="width:110px"><col style="width:120px"><col style="width:120px">
-          <col style="width:120px"><col style="width:90px">
+          <col style="width:32px"><col style="width:36px"><col style="width:100px"><col style="width:85px"><col style="width:165px">
+          <col style="width:100px"><col style="width:110px"><col style="width:110px">
+          <col style="width:110px"><col style="width:90px">
         </colgroup>
-        <tbody id="ah-tbody"><tr><td colspan="9" class="status-msg">Selecione o mês.</td></tr></tbody>
+        <tbody id="ah-tbody"><tr><td colspan="10" class="status-msg">Selecione o mês.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -585,12 +592,14 @@ async function processarLote(){
 
 // ── ALERTA DE HORÁRIO ─────────────────────────────────────────────
 let ahDados = [];
+let AH_MES_ATUAL = null;
+let ahSelecionados = new Set();
 
 function downloadExcelAlerta(){
   const filtro=document.getElementById('ah-status').value;
   const lista=filtro?ahDados.filter(d=>d.status===filtro):ahDados;
   if(!lista.length){alert('Nenhum dado para exportar.');return;}
-  const labelStatus={critico:'Crítico',atencao:'Atenção',normal:'Normal'};
+  const labelStatus={muito_critico:'Muito Crítico',critico:'Crítico',atencao:'Atenção',normal:'Normal'};
   const rows=lista.map(d=>({
     'Base':d.base||'—',
     'Matrícula':d.mat,
@@ -609,11 +618,11 @@ function downloadExcelAlerta(){
 } // cache para filtro de status
 
 function renderAhTabela(lista){
-  const labelStatus={critico:'Crítico',atencao:'Atenção',normal:'Normal'};
+  const labelStatus={muito_critico:'Muito Crítico',critico:'Crítico',atencao:'Atenção',normal:'Normal'};
   const tbody=document.getElementById('ah-tbody');
   document.getElementById('ah-count').textContent=`${lista.length} leiturista(s)`;
   if(!lista.length){
-    tbody.innerHTML='<tr><td colspan="9" class="status-msg">Nenhum leiturista encontrado.</td></tr>';
+    tbody.innerHTML='<tr><td colspan="10" class="status-msg">Nenhum leiturista encontrado.</td></tr>';
     return;
   }
   tbody.innerHTML=lista.map((d,i)=>{
@@ -633,7 +642,12 @@ function renderAhTabela(lista){
         <strong style="color:${cor}">${dataFmt}</strong> <span style="color:${cor}">${label}</span> <span style="font-family:monospace;color:${cor}">${o.hora}</span>
       </span>`;
     }).join('');
+    const checkboxHtml=!PODE_ADMIN()?''
+      :d.jaEnviado
+      ?`<input type="checkbox" checked disabled title="Já enviado neste mês">`
+      :`<input type="checkbox" ${ahSelecionados.has(d.mat)?'checked':''} onchange="toggleAhSelecionado('${d.mat}',this.checked)">`;
     return `<tr>
+      <td style="padding:9px 6px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center">${checkboxHtml}</td>
       <td style="padding:9px 6px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center">
         <button onclick="toggleAhDetalhe(${i})" id="ah-btn-${i}" style="background:none;border:0.5px solid #a0c8a0;border-radius:4px;width:22px;height:22px;cursor:pointer;color:#1a4a1a;font-size:11px;line-height:1">▸</button>
       </td>
@@ -644,14 +658,62 @@ function renderAhTabela(lista){
       <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;${corTarde}">${d.tarde} dia(s)</td>
       <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;font-family:monospace;${d.horaMaisCedo?'color:#854f0b;font-weight:500':''}">${d.horaMaisCedo||'—'}</td>
       <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;font-family:monospace;${d.horaMaisTarde?'color:#a32d2d;font-weight:500':''}">${d.horaMaisTarde||'—'}</td>
-      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center"><span class="b-${d.status}">${labelStatus[d.status]}</span></td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center"><span class="b-${d.status}">${labelStatus[d.status]}</span>${d.jaEnviado?'<div style="font-size:9px;color:#4a7a4a;margin-top:2px">✓ enviado</div>':''}</td>
     </tr>
     <tr id="ah-det-${i}" style="display:none">
-      <td colspan="9" style="background:#f4f8f4;padding:10px 14px;border-bottom:0.5px solid #e0eee0">
+      <td colspan="10" style="background:#f4f8f4;padding:10px 14px;border-bottom:0.5px solid #e0eee0">
         ${detalheLinhas||'<span style="font-size:11px;color:#4a7a4a">Sem ocorrências no período.</span>'}
       </td>
     </tr>`;
   }).join('');
+  atualizarBotaoDisparoAlerta();
+}
+
+function toggleAhSelecionado(mat,checked){
+  if(checked) ahSelecionados.add(mat); else ahSelecionados.delete(mat);
+  atualizarBotaoDisparoAlerta();
+}
+
+function toggleAhSelecionarTodos(checked){
+  const filtro=document.getElementById('ah-status').value;
+  const lista=filtro?ahDados.filter(d=>d.status===filtro):ahDados;
+  lista.forEach(d=>{ if(!d.jaEnviado){ if(checked) ahSelecionados.add(d.mat); else ahSelecionados.delete(d.mat); } });
+  filtrarAlertaHorario();
+}
+
+function atualizarBotaoDisparoAlerta(){
+  const btn=document.getElementById('ah-btn-disparar');
+  const n=ahSelecionados.size;
+  btn.textContent=`✈️ Disparar selecionados (${n})`;
+  btn.disabled=n===0;
+  btn.style.opacity=n===0?'.5':'1';
+}
+
+async function dispararSelecionadosAlerta(){
+  if(!PODE_ADMIN()) return;
+  if(!ahSelecionados.size) return;
+  const diasStr=prompt('Quantos dias de prazo para o tratamento?','5');
+  if(!diasStr||isNaN(parseInt(diasStr))){alert('Informe um número de dias válido.');return;}
+  const prazoDias=parseInt(diasStr);
+  const btn=document.getElementById('ah-btn-disparar');
+  btn.disabled=true;
+  let enviados=0;
+  for(const mat of [...ahSelecionados]){
+    const d=ahDados.find(x=>x.mat===mat);
+    if(!d) continue;
+    if(d.cedo>0){
+      await dispararTratativa({tipo:'inicio_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
+        detalhe:`Início mais cedo no mês: ${d.horaMaisCedo} (${d.cedo} dia(s) fora da janela)`,valorDisparado:1,prazoDiasOverride:prazoDias});
+    }
+    if(d.tarde>0){
+      await dispararTratativa({tipo:'termino_tardio',matricula:d.mat,nomeLeiturista:d.nome,base:d.base,mesRef:AH_MES_ATUAL,
+        detalhe:`Término mais tarde no mês: ${d.horaMaisTarde} (${d.tarde} dia(s) fora da janela)`,valorDisparado:1,prazoDiasOverride:prazoDias});
+    }
+    enviados++;
+  }
+  ahSelecionados.clear();
+  alert(`${enviados} tratativa(s) disparada(s).`);
+  await carregarAlertaHorario();
 }
 
 function toggleAhDetalhe(i){
@@ -669,12 +731,13 @@ function filtrarAlertaHorario(){
 }
 async function carregarAlertaHorario(){
   const mes=document.getElementById('ah-mes').value;
+  AH_MES_ATUAL=mes;
   const base=document.getElementById('ah-base').value;
   const hMin=document.getElementById('ah-min').value||'07:30';
   const hMax=document.getElementById('ah-max').value||'17:30';
   const tbody=document.getElementById('ah-tbody');
-  if(!mes){tbody.innerHTML='<tr><td colspan="9" class="status-msg">Selecione o mês.</td></tr>';return;}
-  tbody.innerHTML='<tr><td colspan="9" class="status-msg">Carregando...</td></tr>';
+  if(!mes){tbody.innerHTML='<tr><td colspan="10" class="status-msg">Selecione o mês.</td></tr>';return;}
+  tbody.innerHTML='<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
 
   const [mm,aa]=mes.split('/');
   const mesRef=`${aa}-${mm}-01`;
@@ -687,7 +750,7 @@ async function carregarAlertaHorario(){
   const matMap={};
   (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista||r.matricula, base:r.base||'—'});
   const matsIds=Object.keys(matMap);
-  if(!matsIds.length){tbody.innerHTML='<tr><td colspan="9" class="status-msg">Nenhum leiturista.</td></tr>';return;}
+  if(!matsIds.length){tbody.innerHTML='<tr><td colspan="10" class="status-msg">Nenhum leiturista.</td></tr>';return;}
 
   // Buscar jornada do mês
   let jornada=[], _from=0;
@@ -726,35 +789,52 @@ async function carregarAlertaHorario(){
   // Calcular status
   const getStatus=(mat)=>{
     const d=acum[mat]; if(!d) return 'normal';
-    let critico=false, atencao=false;
+    let nivel=0; // 0 normal, 1 atencao, 2 critico, 3 muito_critico
     if(d.horaMaisCedo){
       const m=toMin(d.horaMaisCedo);
-      if(m<360) critico=true;       // antes 06:00
-      else if(m<420) atencao=true;  // 06:00-06:59
+      if(m<330) nivel=Math.max(nivel,3);      // antes 05:30
+      else if(m<360) nivel=Math.max(nivel,2); // 05:30-05:59
+      else if(m<420) nivel=Math.max(nivel,1); // 06:00-06:59
     }
     if(d.horaMaisTarde){
       const m=toMin(d.horaMaisTarde);
-      if(m>1110) critico=true;      // após 18:30
-      else if(m>1080) atencao=true; // 18:00-18:29
+      if(m>1170) nivel=Math.max(nivel,3);       // após 19:30
+      else if(m>1110) nivel=Math.max(nivel,2);  // 18:30-19:30
+      else if(m>1080) nivel=Math.max(nivel,1);  // 18:00-18:29
     }
-    return critico?'critico':atencao?'atencao':'normal';
+    return ['normal','atencao','critico','muito_critico'][nivel];
   };
 
   // Filtrar só quem tem algum alerta e montar lista com status
-  ahDados = matsIds
-    .filter(m=>acum[m]&&(acum[m].cedo>0||acum[m].tarde>0))
+  const matsComAlerta = matsIds.filter(m=>acum[m]&&(acum[m].cedo>0||acum[m].tarde>0));
+
+  // Verificar quais já tiveram disparo neste mês (evita reenvio por engano)
+  let jaDisparados=[];
+  if(matsComAlerta.length){
+    const r=await sb.from('tratativas_disparos').select('matricula,tipo')
+      .in('matricula',matsComAlerta).eq('mes_ref',mes).in('tipo',['inicio_tardio','termino_tardio']).eq('valor_disparado',1);
+    jaDisparados=r.data||[];
+  }
+  const enviadoMap={};
+  (jaDisparados||[]).forEach(r=>{ (enviadoMap[r.matricula]=enviadoMap[r.matricula]||new Set()).add(r.tipo); });
+
+  ahDados = matsComAlerta
     .sort((a,b)=>{
-      const ord={critico:0,atencao:1,normal:2};
+      const ord={muito_critico:0,critico:1,atencao:2,normal:3};
       const sa=getStatus(a), sb2=getStatus(b);
       return (ord[sa]||2)-(ord[sb2]||2)||(acum[b].cedo+acum[b].tarde)-(acum[a].cedo+acum[a].tarde);
     })
-    .map(mat=>({
+    .map(mat=>{
+      const tiposAplicaveis=[...(acum[mat].cedo>0?['inicio_tardio']:[]),...(acum[mat].tarde>0?['termino_tardio']:[])];
+      const enviados=enviadoMap[mat]||new Set();
+      const jaEnviado=tiposAplicaveis.length>0 && tiposAplicaveis.every(t=>enviados.has(t));
+      return {
       mat, nome:matMap[mat]?.nome||mat, base:matMap[mat]?.base||'—',
       cedo:acum[mat].cedo, tarde:acum[mat].tarde,
       horaMaisCedo:acum[mat].horaMaisCedo, horaMaisTarde:acum[mat].horaMaisTarde,
       ocorrenciasCedo:acum[mat].ocorrenciasCedo, ocorrenciasTarde:acum[mat].ocorrenciasTarde,
-      status:getStatus(mat)
-    }));
+      status:getStatus(mat), jaEnviado
+    };});
 
   // KPIs
   const totalCedo=ahDados.reduce((s,d)=>s+d.cedo,0);
@@ -1603,7 +1683,7 @@ async function getConfig(){
 }
 
 // ── DISPARAR TRATATIVA ────────────────────────────────────────────
-async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,detalhe,valorDisparado}){
+async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,detalhe,valorDisparado,prazoDiasOverride}){
   const cfg=await getConfig();
   if(!cfg) return;
   // Verificar pausa global
@@ -1622,7 +1702,7 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
   if(!sup) return;
   // Calcular prazo
   const prazo=new Date();
-  prazo.setDate(prazo.getDate()+(cfg.prazo_dias||5));
+  prazo.setDate(prazo.getDate()+(prazoDiasOverride!=null?prazoDiasOverride:(cfg.prazo_dias||5)));
   const prazoStr=prazo.toLocaleDateString('pt-BR');
   // Salvar tratativa
   const {data:trat}=await sb.from('tratativas').insert({
@@ -1798,7 +1878,7 @@ async function fecharMes(){
           const hh=String(Math.floor(mediaInicio/60)).padStart(2,'0');
           const mi=String(mediaInicio%60).padStart(2,'0');
           await dispararTratativa({tipo:'inicio_tardio',matricula:mat,nomeLeiturista:info.nome,base:info.base,mesRef:mes,
-            detalhe:`Média de início ${hh}:${mi} (limite: ${cfg.inicio_tardio_hora})`,valorDisparado:null});
+            detalhe:`Média de início ${hh}:${mi} (limite: ${cfg.inicio_tardio_hora})`,valorDisparado:1});
           disparosFeitos++;
         }
       }
@@ -1811,7 +1891,7 @@ async function fecharMes(){
           const hh=String(Math.floor(mediaTermino/60)).padStart(2,'0');
           const mi=String(mediaTermino%60).padStart(2,'0');
           await dispararTratativa({tipo:'termino_tardio',matricula:mat,nomeLeiturista:info.nome,base:info.base,mesRef:mes,
-            detalhe:`Média de término ${hh}:${mi} (limite: ${cfg.termino_tardio_hora})`,valorDisparado:null});
+            detalhe:`Média de término ${hh}:${mi} (limite: ${cfg.termino_tardio_hora})`,valorDisparado:1});
           disparosFeitos++;
         }
       }
@@ -1836,6 +1916,7 @@ async function carregarInfoAdmin(){
 }
 let PERFIL_BASE=null; // base do usuário logado (null = gestor, vê tudo)
 let PERFIL_TIPO=null; // 'gestor' | 'supervisor' | 'auxiliar'
+const PODE_ADMIN=()=>['gestor','gestor1','supervisor_geral'].includes(PERFIL_TIPO);
 
 // ── INIT ─────────────────────────────────────────────────────────
 (async()=>{
@@ -1884,6 +1965,14 @@ let PERFIL_TIPO=null; // 'gestor' | 'supervisor' | 'auxiliar'
     document.querySelectorAll('.nav button').forEach(btn=>{
       if(btn.textContent.trim()==='Administração') btn.style.display='none';
     });
+  }
+
+  // Esconder disparo do Alerta de Horário se não for gestor/gestor1/supervisor_geral
+  if(!PODE_ADMIN()){
+    const btnDisp=document.getElementById('ah-btn-disparar');
+    const checkAll=document.getElementById('ah-check-all');
+    if(btnDisp) btnDisp.style.display='none';
+    if(checkAll) checkAll.style.display='none';
   }
 
   await iniciarFiltros();
