@@ -1431,7 +1431,8 @@ async function carregarRanking(){
   barsEl.innerHTML=rank.map(([mat,total],i)=>{
     const info=matMap[mat]||{nome:mat};
     const pct=(total/maxVal*100).toFixed(1);
-    return `<div class="bar-row">
+    const tooltip=`${info.nome||mat} — ${info.base||'Sem base'}`;
+    return `<div class="bar-row" title="${tooltip}">
       <div class="bar-rank">${i+1}</div>
       <div class="bar-name">${mat} — ${info.nome||mat}</div>
       <div class="bar-track">
