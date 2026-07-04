@@ -770,31 +770,28 @@ async function carregarAlertaHorario(){
 }
 
 async function iniciarFiltros(){
+  function normalizarParaMMAAAA(mesRefRaw){
+    // aceita 'yyyy-mm' ou 'yyyy-mm-01'
+    const [aa,mm]=mesRefRaw.slice(0,7).split('-');
+    return `${mm}/${aa}`;
+  }
+
+  const {data:mesesJorn}=await sb.rpc('meses_jornada');
+  const valsJorn=[...new Set((mesesJorn||[]).map(r=>normalizarParaMMAAAA(r.mes_ref)))];
+
   const sel=document.getElementById('f-mes');
-  const hoje=new Date();
-  for(let i=0;i<12;i++){
-    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
-    const mm=String(d.getMonth()+1).padStart(2,'0');
-    const val=`${mm}/${d.getFullYear()}`;
-    sel.innerHTML+=`<option value="${val}">${val}</option>`;
-  }
-  // Popular select de gatilhos
+  sel.innerHTML='';
+  valsJorn.forEach(val=>{ sel.innerHTML+=`<option value="${val}">${val}</option>`; });
+
   const selGat=document.getElementById('gat-mes');
-  for(let i=0;i<12;i++){
-    const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
-    const mm=String(d.getMonth()+1).padStart(2,'0');
-    const val=`${mm}/${d.getFullYear()}`;
-    selGat.innerHTML+=`<option value="${val}">${val}</option>`;
-  }
+  selGat.innerHTML='';
+  valsJorn.forEach(val=>{ selGat.innerHTML+=`<option value="${val}">${val}</option>`; });
+
   ['rk-mes','ah-mes'].forEach(id=>{
     const s=document.getElementById(id);
     if(!s) return;
-    for(let i=0;i<12;i++){
-      const d=new Date(hoje.getFullYear(),hoje.getMonth()-i,1);
-      const mm=String(d.getMonth()+1).padStart(2,'0');
-      const val=`${mm}/${d.getFullYear()}`;
-      s.innerHTML+=`<option value="${val}">${val}</option>`;
-    }
+    s.innerHTML='';
+    valsJorn.forEach(val=>{ s.innerHTML+=`<option value="${val}">${val}</option>`; });
   });
   // Popular bases (só se gestor sem restrição)
   if(!PERFIL_BASE){
