@@ -2068,9 +2068,10 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
       .eq('valor_disparado',valorDisparado).eq('base',base||'').single();
     if(ja) return {ok:false,motivo:'ja_enviado'};
   }
-  // Buscar supervisor da base
-  const {data:sup}=await sb.from('usuarios_portal').select('id,nome,email')
-    .filter('base','ilike',base).in('perfil',['supervisor']).eq('ativo',true).single();
+  // Buscar supervisor da base (comparação sem acento/maiúscula — "matriculas" e "usuarios_portal" usam grafias diferentes)
+  const {data:supervisoresAtivos}=await sb.from('usuarios_portal').select('id,nome,email,base')
+    .in('perfil',['supervisor']).eq('ativo',true);
+  const sup=(supervisoresAtivos||[]).find(s=>normBase(s.base)===normBase(base));
   if(!sup) return {ok:false,motivo:'sem_supervisor'};
   // Calcular prazo
   const prazo=new Date();
@@ -2299,6 +2300,11 @@ let PERFIL_BASE=null; // base do usuário logado (null = gestor, vê tudo)
 let PERFIL_TIPO=null; // 'gestor' | 'supervisor' | 'auxiliar'
 const PODE_ADMIN=()=>['gestor','gestor1','supervisor_geral'].includes(PERFIL_TIPO);
 let USUARIO_NOME=null;
+
+// Normaliza nome de base: remove acentos, espaços extras e diferenças de maiúscula/minúscula
+function normBase(s){
+  return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+}
 
 // ── INIT ─────────────────────────────────────────────────────────
 (async()=>{
