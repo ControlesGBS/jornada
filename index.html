@@ -844,15 +844,25 @@ async function carregarMetaLeitura(){
 
   // Agregar por leiturista
   const acum={};
+  const debugRzNaoClassificado={};
+  let debugTotal=0, debugUrb=0, debugRur=0, debugForaFaixa=0;
   jornada.forEach(r=>{
     const leit=r.qtd_leituras||0;
     if(leit<5) return; // ignora dias com poucas leituras
+    debugTotal++;
     const mat=r.matricula;
     if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0};
     const n=parseInt(String(r.rz||'').split('.')[0]);
-    if(n>=1&&n<=88){acum[mat].urb+=leit;acum[mat].diasUrb++;}
-    else if(n>=89&&n<=99){acum[mat].rur+=leit;acum[mat].diasRur++;}
+    if(n>=1&&n<=88){acum[mat].urb+=leit;acum[mat].diasUrb++;debugUrb++;}
+    else if(n>=89&&n<=99){acum[mat].rur+=leit;acum[mat].diasRur++;debugRur++;}
+    else{
+      debugForaFaixa++;
+      const chave=String(r.rz);
+      debugRzNaoClassificado[chave]=(debugRzNaoClassificado[chave]||0)+1;
+    }
   });
+  console.log(`[Meta de Leitura] Registros processados: ${debugTotal} | Urbano: ${debugUrb} | Rural: ${debugRur} | Fora da faixa 1-99: ${debugForaFaixa}`);
+  if(debugForaFaixa>0) console.log('[Meta de Leitura] Valores de RZ fora da faixa (amostra):', debugRzNaoClassificado);
 
   // Verificar quais já tiveram disparo neste mês
   const matsComDados=Object.keys(acum);
