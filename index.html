@@ -150,6 +150,7 @@ td.rota-col{text-align:left;font-size:14px}
   <button onclick="location.href='https://gbsservicos.com/controles'" title="Voltar ao Portal" style="font-size:16px;padding:6px 12px">🏠</button>
   <button class="ativo" onclick="irPara('painel',this)">Painel de jornada</button>
   <button onclick="irPara('alerta-horario',this)">Alerta de horário</button>
+  <button onclick="irPara('meta-leitura',this)">Meta de Leitura</button>
   <button onclick="irPara('ranking',this)">Ranking de leituras</button>
   <button onclick="irPara('admin',this)">Administração</button>
 </div>
@@ -295,6 +296,68 @@ td.rota-col{text-align:left;font-size:14px}
           <col style="width:110px"><col style="width:90px">
         </colgroup>
         <tbody id="ah-tbody"><tr><td colspan="10" class="status-msg">Selecione o mês.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- META DE LEITURA -->
+<div class="pag" id="pag-meta-leitura">
+<div class="ranking-inner">
+  <div class="ranking-topo">
+    <div class="filtros">
+      <div><label>Mês/Ano</label><select id="ml-mes" onchange="carregarMetaLeitura()"></select></div>
+      <div><label>Base</label><select id="ml-base" onchange="carregarMetaLeitura()"><option value="">Todas</option></select></div>
+      <div><label>Meta Urbano</label><input type="number" id="ml-urb" placeholder="ex: 100" oninput="filtrarMetaLeitura()" style="width:90px;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px"></div>
+      <div><label>Meta Rural</label><input type="number" id="ml-rur" placeholder="ex: 60" oninput="filtrarMetaLeitura()" style="width:90px;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px"></div>
+      <div><label>Meta Misto</label><input type="number" id="ml-mis" placeholder="ex: 80" oninput="filtrarMetaLeitura()" style="width:90px;border:0.5px solid #a0c8a0;border-radius:5px;padding:4px 8px;font-size:13px;background:#f8fbf8;color:#1a2a1a;height:30px"></div>
+    </div>
+    <div class="kpis" id="ml-kpis" style="margin-bottom:10px">
+      <div class="kpi"><div class="kpi-label">Abaixo da meta</div><div class="kpi-value" style="color:#a32d2d">—</div></div>
+      <div class="kpi"><div class="kpi-label">Só urbano</div><div class="kpi-value" style="color:#854f0b">—</div></div>
+      <div class="kpi"><div class="kpi-label">Só rural</div><div class="kpi-value" style="color:#27500a">—</div></div>
+      <div class="kpi"><div class="kpi-label">Misto</div><div class="kpi-value" style="color:#3c3489">—</div></div>
+    </div>
+    <!-- Faixa verde congelada -->
+    <div class="rank-card-hdr" style="border-radius:8px 8px 0 0">
+      <span>☰ Resumo por leiturista</span>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span id="ml-count" style="font-size:11px;color:#90c090"></span>
+        <button id="ml-btn-disparar" onclick="dispararSelecionadosMeta()" disabled
+          style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;opacity:.5">✈️ Disparar selecionados (0)</button>
+        <button onclick="downloadExcelMeta()" style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">⬇ Excel</button>
+      </div>
+    </div>
+    <div style="background:#1a4a1a;overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+        <colgroup>
+          <col style="width:32px"><col style="width:100px"><col style="width:85px"><col style="width:165px">
+          <col style="width:90px"><col style="width:100px"><col style="width:100px"><col style="width:100px">
+        </colgroup>
+        <thead><tr>
+          <th style="background:#1a4a1a;border-right:0.5px solid #2d6a2d;text-align:center" id="ml-th-check">
+            <input type="checkbox" id="ml-check-all" onchange="toggleMlSelecionarTodos(this.checked)" title="Selecionar todos">
+          </th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Base</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Matrícula</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:left;white-space:nowrap;border-right:0.5px solid #2d6a2d">Nome</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Tipo</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Média Urbano</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap;border-right:0.5px solid #2d6a2d">Média Rural</th>
+          <th style="background:#1a4a1a;color:#c0e8c0;font-weight:500;padding:8px 14px;text-align:center;white-space:nowrap">Média Misto</th>
+        </tr></thead>
+      </table>
+    </div>
+  </div>
+  <div class="ranking-scroll" style="padding:0 20px 16px;padding-top:0">
+    <div style="border:0.5px solid #c0dcc0;border-top:none;border-radius:0 0 8px 8px;overflow-x:auto;background:#fff">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+        <colgroup>
+          <col style="width:32px"><col style="width:100px"><col style="width:85px"><col style="width:165px">
+          <col style="width:90px"><col style="width:100px"><col style="width:100px"><col style="width:100px">
+        </colgroup>
+        <tbody id="ml-tbody"><tr><td colspan="8" class="status-msg">Selecione o mês.</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -741,7 +804,248 @@ async function dispararSelecionadosAlerta(){
   await carregarAlertaHorario();
 }
 
-function toggleAhDetalhe(i){
+// ── META DE LEITURA ────────────────────────────────────────────────
+let mlDados = [];
+let ML_MES_ATUAL = null;
+let mlSelecionados = new Set();
+
+async function carregarMetaLeitura(){
+  const mes=document.getElementById('ml-mes').value;
+  ML_MES_ATUAL=mes;
+  const base=document.getElementById('ml-base').value;
+  const tbody=document.getElementById('ml-tbody');
+  if(!mes){tbody.innerHTML='<tr><td colspan="8" class="status-msg">Selecione o mês.</td></tr>';return;}
+  tbody.innerHTML='<tr><td colspan="8" class="status-msg">Carregando...</td></tr>';
+
+  const [mm,aa]=mes.split('/');
+  const di=`${aa}-${mm}-01`;
+  const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
+
+  // Buscar matrículas
+  let qMat=sb.from('matriculas').select('matricula,nome_leiturista,base').eq('situacao','Ativo');
+  const baseMl=PERFIL_BASE||base;
+  if(baseMl) qMat=qMat.ilike('base',baseMl);
+  const {data:mats}=await qMat;
+  const matMap={};
+  (mats||[]).forEach(r=>matMap[r.matricula]={nome:r.nome_leiturista||r.matricula, base:r.base||'—'});
+  const matsIds=Object.keys(matMap);
+  if(!matsIds.length){tbody.innerHTML='<tr><td colspan="8" class="status-msg">Nenhum leiturista.</td></tr>';mlDados=[];atualizarKpisMeta();return;}
+
+  // Buscar jornada do mês
+  let jornada=[], _from=0;
+  while(true){
+    const {data:lote}=await sb.from('jornada').select('matricula,rz,qtd_leituras')
+      .in('matricula',matsIds).gte('data',di).lte('data',df).range(_from,_from+999);
+    if(!lote||!lote.length) break;
+    jornada=jornada.concat(lote);
+    if(lote.length<1000) break;
+    _from+=1000;
+  }
+
+  // Agregar por leiturista
+  const acum={};
+  jornada.forEach(r=>{
+    const leit=r.qtd_leituras||0;
+    if(leit<5) return; // ignora dias com poucas leituras
+    const mat=r.matricula;
+    if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0};
+    const n=parseInt(String(r.rz||'').split('.')[0]);
+    if(n>=1&&n<=88){acum[mat].urb+=leit;acum[mat].diasUrb++;}
+    else if(n>=89&&n<=99){acum[mat].rur+=leit;acum[mat].diasRur++;}
+  });
+
+  // Verificar quais já tiveram disparo neste mês
+  const matsComDados=Object.keys(acum);
+  let jaDisparados=[];
+  if(matsComDados.length){
+    const r=await sb.from('tratativas_disparos').select('matricula')
+      .in('matricula',matsComDados).eq('mes_ref',mes).eq('tipo','meta').eq('valor_disparado',1);
+    jaDisparados=r.data||[];
+  }
+  const enviadoSet=new Set((jaDisparados||[]).map(r=>r.matricula));
+
+  mlDados = matsComDados.map(mat=>{
+    const v=acum[mat];
+    const ehUrbano=v.diasUrb>0 && v.diasRur===0;
+    const ehRural=v.diasRur>0 && v.diasUrb===0;
+    const ehMisto=v.diasUrb>0 && v.diasRur>0;
+    const tipo=ehMisto?'misto':ehUrbano?'urbano':ehRural?'rural':null;
+    return {
+      mat, nome:matMap[mat]?.nome||mat, base:matMap[mat]?.base||'—', tipo,
+      mediaUrb:v.diasUrb>0?Math.round(v.urb/v.diasUrb):null,
+      mediaRur:v.diasRur>0?Math.round(v.rur/v.diasRur):null,
+      mediaMisto:ehMisto?Math.round((v.urb+v.rur)/(v.diasUrb+v.diasRur)):null,
+      jaEnviado:enviadoSet.has(mat)
+    };
+  }).filter(d=>d.tipo);
+
+  filtrarMetaLeitura();
+}
+
+function filtrarMetaLeitura(){
+  const limUrb=parseFloat(document.getElementById('ml-urb').value);
+  const limRur=parseFloat(document.getElementById('ml-rur').value);
+  const limMis=parseFloat(document.getElementById('ml-mis').value);
+  const temFiltro=!isNaN(limUrb)||!isNaN(limRur)||!isNaN(limMis);
+
+  let lista=[];
+  if(temFiltro){
+    lista=mlDados.filter(d=>{
+      if(d.tipo==='urbano') return !isNaN(limUrb) && d.mediaUrb<limUrb;
+      if(d.tipo==='rural') return !isNaN(limRur) && d.mediaRur<limRur;
+      if(d.tipo==='misto') return !isNaN(limMis) && d.mediaMisto<limMis;
+      return false;
+    });
+  }
+  renderMlTabela(lista, temFiltro);
+  atualizarKpisMeta(lista);
+}
+
+function atualizarKpisMeta(lista){
+  lista=lista||[];
+  const kpis=document.querySelectorAll('#ml-kpis .kpi-value');
+  if(!kpis.length) return;
+  kpis[0].textContent=lista.length;
+  kpis[1].textContent=lista.filter(d=>d.tipo==='urbano').length;
+  kpis[2].textContent=lista.filter(d=>d.tipo==='rural').length;
+  kpis[3].textContent=lista.filter(d=>d.tipo==='misto').length;
+}
+
+function renderMlTabela(lista, temFiltro){
+  const tbody=document.getElementById('ml-tbody');
+  document.getElementById('ml-count').textContent=`${lista.length} leiturista(s)`;
+  if(!temFiltro){
+    tbody.innerHTML='<tr><td colspan="8" class="status-msg">Digite ao menos uma meta (Urbano, Rural ou Misto) para ver quem está abaixo.</td></tr>';
+    return;
+  }
+  if(!lista.length){
+    tbody.innerHTML='<tr><td colspan="8" class="status-msg">Nenhum leiturista abaixo da meta.</td></tr>';
+    return;
+  }
+  const tipoLabel={urbano:'Urbano',rural:'Rural',misto:'Misto'};
+  const tipoCor={urbano:'#854f0b',rural:'#27500a',misto:'#3c3489'};
+  tbody.innerHTML=lista.map(d=>{
+    const checkboxHtml=!PODE_ADMIN()?''
+      :d.jaEnviado
+      ?`<input type="checkbox" checked disabled title="Já enviado neste mês">`
+      :`<input type="checkbox" ${mlSelecionados.has(d.mat)?'checked':''} onchange="toggleMlSelecionado('${d.mat}',this.checked)">`;
+    return `<tr>
+      <td style="padding:9px 6px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center">${checkboxHtml}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;font-size:12px">${d.base}</td>
+      <td style="font-weight:500;padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8">${d.mat}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;font-size:12px">${d.nome}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center;color:${tipoCor[d.tipo]};font-weight:500">${tipoLabel[d.tipo]}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center">${d.mediaUrb!=null?d.mediaUrb:'—'}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;border-right:0.5px solid #e8f4e8;text-align:center">${d.mediaRur!=null?d.mediaRur:'—'}</td>
+      <td style="padding:9px 14px;border-bottom:0.5px solid #e0eee0;text-align:center">${d.mediaMisto!=null?d.mediaMisto:'—'}${d.jaEnviado?'<div style="font-size:9px;color:#4a7a4a;margin-top:2px">✓ enviado</div>':''}</td>
+    </tr>`;
+  }).join('');
+  atualizarBotaoDisparoMeta();
+}
+
+function toggleMlSelecionado(mat,checked){
+  if(checked) mlSelecionados.add(mat); else mlSelecionados.delete(mat);
+  atualizarBotaoDisparoMeta();
+}
+
+function toggleMlSelecionarTodos(checked){
+  document.querySelectorAll('#ml-tbody input[type="checkbox"]:not(:disabled)').forEach(inp=>{
+    inp.checked=checked;
+    const tr=inp.closest('tr');
+    const mat=tr.querySelector('td:nth-child(3)').textContent.trim();
+    if(checked) mlSelecionados.add(mat); else mlSelecionados.delete(mat);
+  });
+  atualizarBotaoDisparoMeta();
+}
+
+function atualizarBotaoDisparoMeta(){
+  const btn=document.getElementById('ml-btn-disparar');
+  const checkAll=document.getElementById('ml-th-check');
+  if(!PODE_ADMIN()){
+    if(btn) btn.style.display='none';
+    if(checkAll) checkAll.style.display='none';
+    return;
+  }
+  const n=mlSelecionados.size;
+  btn.textContent=`✈️ Disparar selecionados (${n})`;
+  btn.disabled=n===0;
+  btn.style.opacity=n===0?'.5':'1';
+}
+
+async function dispararSelecionadosMeta(){
+  if(!PODE_ADMIN()) return;
+  if(!mlSelecionados.size) return;
+  const diasStr=prompt('Quantos dias de prazo para o tratamento?','5');
+  if(!diasStr||isNaN(parseInt(diasStr))){alert('Informe um número de dias válido.');return;}
+  const prazoDias=parseInt(diasStr);
+  const btn=document.getElementById('ml-btn-disparar');
+  btn.disabled=true;
+
+  const porBase={};
+  [...mlSelecionados].forEach(mat=>{
+    const d=mlDados.find(x=>x.mat===mat);
+    if(!d) return;
+    (porBase[d.base]=porBase[d.base]||[]).push(d);
+  });
+
+  const motivoTexto={sem_supervisor:'não encontrou supervisor ativo cadastrado para essa base',
+    sem_config:'configurações de tratativas não encontradas',email_pausado:'envio de e-mail está pausado nas Configurações'};
+  let basesEnviadas=0, leituristasEnviados=0;
+  const falhas=[];
+
+  for(const [base,leituristas] of Object.entries(porBase)){
+    const lista=leituristas.map(d=>d.mat).join(', ');
+    const detalhe=`Verifique a média de leituras (abaixo da meta) dos leituristas, matrículas: ${lista} no mês ${ML_MES_ATUAL}.`;
+    const r=await dispararTratativa({tipo:'meta',matricula:leituristas.map(d=>d.mat).join(','),
+      nomeLeiturista:leituristas.map(d=>d.nome).join(', '),base,mesRef:ML_MES_ATUAL,
+      detalhe,valorDisparado:null,prazoDiasOverride:prazoDias});
+    if(r.ok){
+      basesEnviadas++; leituristasEnviados+=leituristas.length;
+      for(const d of leituristas){
+        await sb.from('tratativas_disparos').insert({matricula:d.mat,mes_ref:ML_MES_ATUAL,tipo:'meta',valor_disparado:1,base});
+      }
+    } else {
+      falhas.push(`Base ${base} (${leituristas.length} leiturista(s)) — ${r.motivo}`);
+    }
+  }
+
+  mlSelecionados.clear();
+  let msg=`${basesEnviadas} base(s) notificada(s), ${leituristasEnviados} leiturista(s) no total.`;
+  if(falhas.length){
+    msg+=`\n\n⚠ ${falhas.length} falharam:\n`+falhas.map(f=>{
+      const [nomeParte,motivo]=f.split(' — ');
+      return `- ${nomeParte}: ${motivoTexto[motivo]||motivo}`;
+    }).join('\n');
+  }
+  alert(msg);
+  await carregarMetaLeitura();
+}
+
+function downloadExcelMeta(){
+  const limUrb=parseFloat(document.getElementById('ml-urb').value);
+  const limRur=parseFloat(document.getElementById('ml-rur').value);
+  const limMis=parseFloat(document.getElementById('ml-mis').value);
+  const temFiltro=!isNaN(limUrb)||!isNaN(limRur)||!isNaN(limMis);
+  const lista=temFiltro?mlDados.filter(d=>{
+    if(d.tipo==='urbano') return !isNaN(limUrb) && d.mediaUrb<limUrb;
+    if(d.tipo==='rural') return !isNaN(limRur) && d.mediaRur<limRur;
+    if(d.tipo==='misto') return !isNaN(limMis) && d.mediaMisto<limMis;
+    return false;
+  }):mlDados;
+  if(!lista.length){alert('Nenhum dado para exportar.');return;}
+  const tipoLabel={urbano:'Urbano',rural:'Rural',misto:'Misto'};
+  const rows=lista.map(d=>({
+    'Base':d.base,'Matrícula':d.mat,'Nome':d.nome,'Tipo':tipoLabel[d.tipo],
+    'Média Urbano':d.mediaUrb!=null?d.mediaUrb:'—','Média Rural':d.mediaRur!=null?d.mediaRur:'—','Média Misto':d.mediaMisto!=null?d.mediaMisto:'—'
+  }));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Meta Leitura');
+  const mes=(ML_MES_ATUAL||'').replace('/','');
+  XLSX.writeFile(wb,`meta_leitura_${mes}.xlsx`);
+}
+
+
   const row=document.getElementById('ah-det-'+i);
   const btn=document.getElementById('ah-btn-'+i);
   const vis=row.style.display==='none';
@@ -892,7 +1196,7 @@ async function iniciarFiltros(){
   selGat.innerHTML='';
   valsJorn.forEach(val=>{ selGat.innerHTML+=`<option value="${val}">${val}</option>`; });
 
-  ['rk-mes','ah-mes'].forEach(id=>{
+  ['rk-mes','ah-mes','ml-mes'].forEach(id=>{
     const s=document.getElementById(id);
     if(!s) return;
     s.innerHTML='';
@@ -904,7 +1208,7 @@ async function iniciarFiltros(){
     const bases=[...new Set((data||[]).map(r=>r.base).filter(Boolean))];
     const selB=document.getElementById('f-base');
     bases.forEach(b=>selB.innerHTML+=`<option value="${b}">${b}</option>`);
-    ['rk-base','ah-base'].forEach(id=>{
+    ['rk-base','ah-base','ml-base'].forEach(id=>{
       const s=document.getElementById(id);
       if(!s) return;
       bases.forEach(b=>s.innerHTML+=`<option value="${b}">${b}</option>`);
@@ -1976,7 +2280,7 @@ const PODE_ADMIN=()=>['gestor','gestor1','supervisor_geral'].includes(PERFIL_TIP
       selBase.closest('div').style.display='none'; // esconde do sidebar
     }
     // Outras abas — esconde e trava
-    ['rk-base','ah-base'].forEach(id=>{
+    ['rk-base','ah-base','ml-base'].forEach(id=>{
       const s=document.getElementById(id);
       if(s){
         s.innerHTML=`<option value="${PERFIL_BASE}">${PERFIL_BASE}</option>`;
