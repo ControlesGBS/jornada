@@ -2118,7 +2118,8 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
         </table>
         <p style="margin-bottom:16px">Por favor, registre a tratativa até <strong>${prazoStr}</strong> clicando no botão abaixo.</p>
         <div style="text-align:center;margin-bottom:20px"><a href="${link}" style="background:#2d7a2d;color:#fff;padding:10px 28px;border-radius:6px;text-decoration:none;font-weight:500;font-size:13px">REGISTRAR TRATATIVA</a></div>
-        <p style="font-size:11px;color:#4a7a4a;border-top:0.5px solid #c0dcc0;padding-top:12px">At.te<br><strong>Gestão de Controles</strong></p>
+        <p style="font-size:12px;color:#4a7a4a;margin-bottom:16px">Você pode conferir as quantidades de leitura no sistema, em Jornada &amp; Performance.</p>
+        <p style="font-size:11px;color:#4a7a4a;border-top:0.5px solid #c0dcc0;padding-top:12px">At.te<br><strong>Gestão de Controles</strong>${USUARIO_NOME?`<br><span style="color:#90a090">Enviado por: ${USUARIO_NOME}</span>`:''}</p>
       </div>
     </div>`
   );
@@ -2318,6 +2319,7 @@ async function carregarInfoAdmin(){
 let PERFIL_BASE=null; // base do usuário logado (null = gestor, vê tudo)
 let PERFIL_TIPO=null; // 'gestor' | 'supervisor' | 'auxiliar'
 const PODE_ADMIN=()=>['gestor','gestor1','supervisor_geral'].includes(PERFIL_TIPO);
+let USUARIO_NOME=null;
 
 // ── INIT ─────────────────────────────────────────────────────────
 (async()=>{
@@ -2331,9 +2333,11 @@ const PODE_ADMIN=()=>['gestor','gestor1','supervisor_geral'].includes(PERFIL_TIP
   if(up&&up.ativo){
     PERFIL_TIPO=up.perfil;
     PERFIL_BASE=up.base||null; // null = sem restrição
+    USUARIO_NOME=up.nome||user.email;
     document.getElementById('user-info').textContent=up.nome||user.email;
   } else {
     // fallback: usa email, sem restrição (gestor)
+    USUARIO_NOME=user.email;
     document.getElementById('user-info').textContent=user.email;
     PERFIL_TIPO='gestor';
     PERFIL_BASE=null;
