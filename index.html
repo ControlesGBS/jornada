@@ -843,12 +843,13 @@ async function carregarMetaLeitura(){
     _from+=1000;
   }
 
-  // Agregar por leiturista
+  // Agregar por leiturista — mesma fórmula do Painel: soma TODAS as leituras,
+  // mas só conta o "dia" no denominador quando o dia tem 10+ leituras
   const acum={};
   const diasNaoClassificados=[];
   jornada.forEach(r=>{
     const leit=r.qtd_leituras||0;
-    if(leit<10) return; // ignora dias com poucas leituras (mesmo limiar usado no resto do sistema)
+    if(leit<=0) return; // dia sem nenhuma leitura não soma nada
     const mat=r.matricula;
     if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0};
     let rotasDia=[];
@@ -856,9 +857,13 @@ async function carregarMetaLeitura(){
     const nums=rotasDia.map(x=>parseInt(String(x).split('|')[0])).filter(x=>!isNaN(x));
     const temRural=nums.some(n=>n>=89&&n<=99);
     const temUrbano=nums.some(n=>n>=1&&n<=88);
-    if(temRural){acum[mat].rur+=leit;acum[mat].diasRur++;}
-    else if(temUrbano){acum[mat].urb+=leit;acum[mat].diasUrb++;}
-    else{
+    if(temRural){
+      acum[mat].rur+=leit;
+      if(leit>=10) acum[mat].diasRur++;
+    } else if(temUrbano){
+      acum[mat].urb+=leit;
+      if(leit>=10) acum[mat].diasUrb++;
+    } else if(leit>=10){
       diasNaoClassificados.push({matricula:mat,data:r.data,leituras:leit,rotas_json:r.rotas_json});
     }
   });
