@@ -909,6 +909,18 @@ function atualizarKpisMeta(lista){
   kpis[1].textContent=lista.filter(d=>d.tipo==='urbano').length;
   kpis[2].textContent=lista.filter(d=>d.tipo==='rural').length;
   kpis[3].textContent=lista.filter(d=>d.tipo==='misto').length;
+
+  const totUrb=mlDados.filter(d=>d.tipo==='urbano').length;
+  const totRur=mlDados.filter(d=>d.tipo==='rural').length;
+  const totMis=mlDados.filter(d=>d.tipo==='misto').length;
+  let elTotal=document.getElementById('ml-total-mes');
+  if(!elTotal){
+    elTotal=document.createElement('div');
+    elTotal.id='ml-total-mes';
+    elTotal.style.cssText='font-size:11px;color:#4a7a4a;margin:-4px 0 10px';
+    document.getElementById('ml-kpis').insertAdjacentElement('afterend',elTotal);
+  }
+  elTotal.textContent=`Total no mês (sem filtro): ${mlDados.length} leiturista(s) — ${totUrb} urbano, ${totRur} rural, ${totMis} misto`;
 }
 
 function renderMlTabela(lista, temFiltro){
