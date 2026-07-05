@@ -493,6 +493,7 @@ function irPara(id,btn){
   btn.classList.add('ativo');
   if(id==='ranking') carregarRanking();
   if(id==='alerta-horario') carregarAlertaHorario();
+  if(id==='meta-leitura') carregarMetaLeitura();
 }
 async function sair(){ await sb.auth.signOut(); location.href='https://gbsservicos.com'; }
 
