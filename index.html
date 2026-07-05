@@ -843,18 +843,29 @@ async function carregarMetaLeitura(){
     _from+=1000;
   }
 
+  // Mesclar múltiplas linhas do mesmo dia (mesma matrícula+data) antes de classificar,
+  // igual o Painel de Jornada já faz — evita contar um dia duas vezes.
+  const porDia={};
+  jornada.forEach(r=>{
+    const chave=r.matricula+'|'+r.data;
+    if(!porDia[chave]) porDia[chave]={matricula:r.matricula,data:r.data,qtd_leituras:0,rotas:[]};
+    porDia[chave].qtd_leituras+=r.qtd_leituras||0;
+    let rt=[];
+    try{ rt=JSON.parse(r.rotas_json||'[]'); }catch(e){ rt=[]; }
+    porDia[chave].rotas=[...porDia[chave].rotas,...rt];
+  });
+  const jornadaMesclada=Object.values(porDia);
+
   // Agregar por leiturista — mesma fórmula do Painel: soma TODAS as leituras,
   // mas só conta o "dia" no denominador quando o dia tem 10+ leituras
   const acum={};
   const diasNaoClassificados=[];
-  jornada.forEach(r=>{
+  jornadaMesclada.forEach(r=>{
     const leit=r.qtd_leituras||0;
     if(leit<=0) return; // dia sem nenhuma leitura não soma nada
     const mat=r.matricula;
     if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0};
-    let rotasDia=[];
-    try{ rotasDia=JSON.parse(r.rotas_json||'[]'); }catch(e){ rotasDia=[]; }
-    const nums=rotasDia.map(x=>parseInt(String(x).split('|')[0])).filter(x=>!isNaN(x));
+    const nums=r.rotas.map(x=>parseInt(String(x).split('|')[0])).filter(x=>!isNaN(x));
     const temRural=nums.some(n=>n>=89&&n<=99);
     const temUrbano=nums.some(n=>n>=1&&n<=88);
     if(temRural){
@@ -864,7 +875,7 @@ async function carregarMetaLeitura(){
       acum[mat].urb+=leit;
       if(leit>=10) acum[mat].diasUrb++;
     } else if(leit>=10){
-      diasNaoClassificados.push({matricula:mat,data:r.data,leituras:leit,rotas_json:r.rotas_json});
+      diasNaoClassificados.push({matricula:mat,data:r.data,leituras:leit});
     }
   });
   if(diasNaoClassificados.length){
@@ -1962,16 +1973,23 @@ async function carregarMeta(){
     return;
   }
   const {data:jornada}=await sb.from('jornada')
-    .select('matricula,rotas_json,qtd_leituras')
+    .select('matricula,data,rotas_json,qtd_leituras')
     .in('matricula',matsIds).gte('data',di).lte('data',df);
+  const porDiaMt={};
+  (jornada||[]).forEach(r=>{
+    const chave=r.matricula+'|'+r.data;
+    if(!porDiaMt[chave]) porDiaMt[chave]={matricula:r.matricula,qtd_leituras:0,rotas:[]};
+    porDiaMt[chave].qtd_leituras+=r.qtd_leituras||0;
+    let rt=[];
+    try{ rt=JSON.parse(r.rotas_json||'[]'); }catch(e){ rt=[]; }
+    porDiaMt[chave].rotas=[...porDiaMt[chave].rotas,...rt];
+  });
   const acum={};
-  (jornada||[]).forEach(row=>{
+  Object.values(porDiaMt).forEach(row=>{
     if((row.qtd_leituras||0)<10) return;
     const mat=row.matricula;
     if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0};
-    let rotasDia=[];
-    try{ rotasDia=JSON.parse(row.rotas_json||'[]'); }catch(e){ rotasDia=[]; }
-    const nums=rotasDia.map(x=>parseInt(String(x).split('|')[0])).filter(x=>!isNaN(x));
+    const nums=row.rotas.map(x=>parseInt(String(x).split('|')[0])).filter(x=>!isNaN(x));
     const temRural=nums.some(n=>n>=89&&n<=99);
     const temUrbano=nums.some(n=>n>=1&&n<=88);
     if(temRural){acum[mat].rur+=row.qtd_leituras;acum[mat].diasRur++;}
@@ -2190,19 +2208,30 @@ async function fecharMes(){
     const di=`${aa}-${mm}-01`;
     const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
     // Buscar jornada do mês
-    const {data:jornada}=await sb.from('jornada').select('matricula,rotas_json,qtd_leituras,hora_inicial,hora_final')
+    const {data:jornada}=await sb.from('jornada').select('matricula,data,rotas_json,qtd_leituras,hora_inicial,hora_final')
       .gte('data',di).lte('data',df);
     if(!jornada||!jornada.length){prog.textContent='Nenhum dado encontrado para esse mês.';btn.disabled=false;return;}
+    // Mesclar múltiplas linhas do mesmo dia (mesma matrícula+data) — evita contar um dia duas vezes
+    const porDiaFm={};
+    jornada.forEach(r=>{
+      const chave=r.matricula+'|'+r.data;
+      if(!porDiaFm[chave]) porDiaFm[chave]={matricula:r.matricula,qtd_leituras:0,rotas:[],hora_inicial:null,hora_final:null};
+      const g=porDiaFm[chave];
+      g.qtd_leituras+=r.qtd_leituras||0;
+      let rt=[];
+      try{ rt=JSON.parse(r.rotas_json||'[]'); }catch(e){ rt=[]; }
+      g.rotas=[...g.rotas,...rt];
+      if(r.hora_inicial && (!g.hora_inicial || r.hora_inicial<g.hora_inicial)) g.hora_inicial=r.hora_inicial;
+      if(r.hora_final && (!g.hora_final || r.hora_final>g.hora_final)) g.hora_final=r.hora_final;
+    });
     // Agrupar por leiturista
     const acum={};
-    jornada.forEach(r=>{
+    Object.values(porDiaFm).forEach(r=>{
       const mat=r.matricula;
       if(!acum[mat]) acum[mat]={urb:0,rur:0,diasUrb:0,diasRur:0,somaInicio:0,diasInicio:0,somaTermino:0,diasTermino:0};
       const leit=r.qtd_leituras||0;
       if(leit<10) return;
-      let rotasDia=[];
-      try{ rotasDia=JSON.parse(r.rotas_json||'[]'); }catch(e){ rotasDia=[]; }
-      const nums=rotasDia.map(x=>parseInt(String(x).split('|')[0])).filter(x=>!isNaN(x));
+      const nums=r.rotas.map(x=>parseInt(String(x).split('|')[0])).filter(x=>!isNaN(x));
       const temRural=nums.some(n=>n>=89&&n<=99);
       const temUrbano=nums.some(n=>n>=1&&n<=88);
       if(temRural){acum[mat].rur+=leit;acum[mat].diasRur++;}
