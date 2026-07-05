@@ -881,6 +881,10 @@ async function carregarMetaLeitura(){
   }
   const enviadoSet=new Set((jaDisparados||[]).map(r=>r.matricula));
 
+  if(acum['104']){
+    console.log('[Meta de Leitura][DIAG 104] Dados brutos acumulados:', JSON.stringify(acum['104']));
+    console.log(`[Meta de Leitura][DIAG 104] urb=${acum['104'].urb} rur=${acum['104'].rur} diasUrb=${acum['104'].diasUrb} diasRur=${acum['104'].diasRur} | soma total=${acum['104'].urb+acum['104'].rur} | dias total=${acum['104'].diasUrb+acum['104'].diasRur}`);
+  }
   mlDados = matsComDados.map(mat=>{
     const v=acum[mat];
     const ehUrbano=v.diasUrb>0 && v.diasRur===0;
