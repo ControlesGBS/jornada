@@ -1045,7 +1045,7 @@ function downloadExcelMeta(){
   XLSX.writeFile(wb,`meta_leitura_${mes}.xlsx`);
 }
 
-
+function toggleAhDetalhe(i){
   const row=document.getElementById('ah-det-'+i);
   const btn=document.getElementById('ah-btn-'+i);
   const vis=row.style.display==='none';
