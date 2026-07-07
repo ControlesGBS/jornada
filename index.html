@@ -583,6 +583,7 @@ async function processarAcert(){
 
     prog.className = 'progresso ok';
     prog.textContent = `\u2713 ${registros.length} leituras acertadas salvas para ${mesRefDb}!`;
+    registrarUploadSupabase('leituras_acertadas');
 
     // Disparar gatilho de impedimentos AGORA (leitura + acertada já subidas)
     const [aa,mm]=mesRefDb.split('-');
@@ -1804,6 +1805,7 @@ async function processarCemig(fileOverride){
     prog.className='progresso ok';
     prog.textContent=`\u2713 ${registros.length} registros de jornada + ${impsParaSalvar.length} impedimentos salvos!`;
     registrarUpload(arquivo.name);
+    registrarUploadSupabase('jornada');
     // Gatilho de impedimentos agora dispara só depois do upload de "Acertadas"
     // (veja verificarGatilhosImpedimentos, que já desconta os acertados da contagem)
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;console.error(e);}
@@ -2060,6 +2062,11 @@ async function carregarMeta(){
   }
   renderMetaBox('mt-urb-body',abaixoUrb,metaUrb,'urb');
   renderMetaBox('mt-rur-body',abaixoRur,metaRur,'rur');
+}
+
+// ── LOG DE ATUALIZAÇÃO (Supabase — alimenta o popup global) ──────
+async function registrarUploadSupabase(tipo){
+  await sb.from('uploads_log').upsert({tipo,atualizado_em:new Date().toISOString(),atualizado_por:USUARIO_NOME||'—'});
 }
 
 // ── LOG DE UPLOADS (localStorage) ────────────────────────────────
@@ -2434,5 +2441,6 @@ function normBase(s){
 })();
 </script>
 <script src="/controles/auto-logout.js"></script>
+<script src="/controles/notificacoes-atualizacao.js"></script>
 </body>
 </html>
