@@ -591,7 +591,8 @@ async function processarAcert(){
     const mesRefGatilho=`${mm}/${aa}`; // formato mm/aaaa esperado por verificarGatilhosImpedimentos
     const resumo=await verificarGatilhosImpedimentos(mesRefGatilho);
     let msgGat=' ';
-    if(resumo.pausado) msgGat+='(envio de e-mail pausado nas configurações — nenhum e-mail foi enviado)';
+    if(resumo.foraDoMesAtual) msgGat+='(mês diferente do atual — gatilho não verificado, nenhum e-mail enviado)';
+    else if(resumo.pausado) msgGat+='(envio de e-mail pausado nas configurações — nenhum e-mail foi enviado)';
     else if(resumo.disparados===0 && resumo.jaEnviados===0 && resumo.semSupervisor===0) msgGat+='Nenhum gatilho atingido.';
     else{
       const partes=[];
@@ -614,7 +615,8 @@ async function rodarGatilhosImpedimentos(){
   btn.disabled=true;prog.style.color='#4a7a4a';prog.textContent='Verificando gatilhos...';
   const resumo=await verificarGatilhosImpedimentos(mes);
   prog.style.color='#16a34a';
-  if(resumo.pausado) prog.textContent='⚠ Envio de e-mail está pausado nas configurações.';
+  if(resumo.foraDoMesAtual) prog.textContent='⚠ Só é possível verificar gatilhos do mês atual.';
+  else if(resumo.pausado) prog.textContent='⚠ Envio de e-mail está pausado nas configurações.';
   else if(resumo.disparados===0 && resumo.jaEnviados===0 && resumo.semSupervisor===0) prog.textContent='✓ Verificado — nenhum gatilho atingido.';
   else{
     const partes=[];
@@ -2171,7 +2173,11 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
 
 // ── VERIFICAR GATILHOS APÓS UPLOAD (impedimentos) ─────────────────
 async function verificarGatilhosImpedimentos(mesRef){
-  const resumo={disparados:0,jaEnviados:0,semSupervisor:0,pausado:false};
+  const resumo={disparados:0,jaEnviados:0,semSupervisor:0,pausado:false,foraDoMesAtual:false};
+  // Só dispara gatilho/e-mail para o mês corrente — uploads de meses passados não devem gerar disparo
+  const hoje=new Date();
+  const mesAtual=`${String(hoje.getMonth()+1).padStart(2,'0')}/${hoje.getFullYear()}`;
+  if(mesRef!==mesAtual){ resumo.foraDoMesAtual=true; return resumo; }
   const cfg=await getConfig();
   if(!cfg||!cfg.impedimentos_ativo) return resumo;
   const qtdGatilho=cfg.impedimentos_qtd||10;
