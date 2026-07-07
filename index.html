@@ -2194,26 +2194,27 @@ async function verificarGatilhosImpedimentos(mesRef){
   const acertSet=new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
   const imps=impsRaw.filter(r=>!acertSet.has(`${r.instalacao}|${r.reg}`));
   if(!imps.length) return resumo;
-  // Agrupar por matricula+base
+  // Agrupar só por matrícula — tudo que o leiturista fez conta pra base cadastrada dele,
+  // mesmo que registros antigos do mesmo mês ainda tenham uma base diferente gravada
   const contagem={};
   imps.forEach(r=>{
-    const chave=`${r.matricula}|${r.base||''}`;
-    if(!contagem[chave]) contagem[chave]={qtd:0,base:r.base,matricula:r.matricula};
-    contagem[chave].qtd++;
+    if(!contagem[r.matricula]) contagem[r.matricula]={qtd:0,matricula:r.matricula};
+    contagem[r.matricula].qtd++;
   });
-  // Buscar nomes
+  // Buscar nomes e a base cadastrada (fonte da verdade, não o campo base do impedimento)
   const mats=[...new Set(Object.values(contagem).map(v=>v.matricula))];
-  const {data:matData}=await sb.from('matriculas').select('matricula,nome_leiturista').in('matricula',mats);
-  const nomeMap={};
-  (matData||[]).forEach(r=>nomeMap[r.matricula]=r.nome_leiturista);
+  const {data:matData}=await sb.from('matriculas').select('matricula,nome_leiturista,base').in('matricula',mats);
+  const nomeMap={}, baseMap={};
+  (matData||[]).forEach(r=>{ nomeMap[r.matricula]=r.nome_leiturista; baseMap[r.matricula]=r.base; });
   // Disparar para cada múltiplo atingido
-  for(const [chave,v] of Object.entries(contagem)){
+  for(const [matricula,v] of Object.entries(contagem)){
+    const baseLeit=baseMap[matricula]||null;
     const multiplosAtingidos=Math.floor(v.qtd/qtdGatilho);
     for(let m=1;m<=multiplosAtingidos;m++){
       const valorDisp=m*qtdGatilho;
       const r=await dispararTratativa({
-        tipo:'impedimentos', matricula:v.matricula,
-        nomeLeiturista:nomeMap[v.matricula]||v.matricula, base:v.base, mesRef,
+        tipo:'impedimentos', matricula:matricula,
+        nomeLeiturista:nomeMap[matricula]||matricula, base:baseLeit, mesRef,
         detalhe:`${v.qtd} impedimentos GBS no mês (gatilho: ${valorDisp})`,
         valorDisparado:valorDisp
       });
