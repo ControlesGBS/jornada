@@ -1734,11 +1734,17 @@ async function processarCemig(fileOverride){
 
     if(impsParaSalvar.length){
       prog.textContent='Enriquecendo com base/cidade...';
-      // Buscar local_base para enriquecer
+      // Cidade vem do local (geografia); base vem do cadastro do leiturista
+      // (o que o leiturista faz conta sempre para a base dele, mesmo se leu em cidade de outra base)
       const locCods=[...new Set(impsParaSalvar.map(r=>r.local_cod).filter(Boolean))];
-      const {data:lbData}=await sb.from('local_base').select('local,cidade,base').in('local',locCods);
+      const {data:lbData}=await sb.from('local_base').select('local,cidade').in('local',locCods);
       const lbMap={};
-      (lbData||[]).forEach(r=>lbMap[r.local]={cidade:r.cidade,base:r.base});
+      (lbData||[]).forEach(r=>lbMap[r.local]={cidade:r.cidade});
+
+      const matsImp=[...new Set(impsParaSalvar.map(r=>r.matricula).filter(Boolean))];
+      const {data:matBaseData}=await sb.from('matriculas').select('matricula,base').in('matricula',matsImp);
+      const matBaseMap={};
+      (matBaseData||[]).forEach(r=>matBaseMap[r.matricula]=r.base);
 
       const impsEnriq=impsParaSalvar.map(r=>{
         const lb=lbMap[r.local_cod]||{};
@@ -1747,7 +1753,7 @@ async function processarCemig(fileOverride){
           instalacao:r.instalacao, medidor:r.medidor, ocorrencia:r.ocorrencia,
           endereco:r.endereco, qtd_digitacao:r.qtd_digitacao,
           responsabilidade:r.responsabilidade, reg:r.reg||null,
-          cidade:lb.cidade||null, base:lb.base||null,
+          cidade:lb.cidade||null, base:matBaseMap[r.matricula]||null,
           mes_ref:mesRefImp||null,
         };
       });
