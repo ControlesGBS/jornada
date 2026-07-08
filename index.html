@@ -2185,13 +2185,25 @@ async function verificarGatilhosImpedimentos(mesRef){
   const di=`${aa}-${mm}-01`;
   const df=`${aa}-${mm}-${String(new Date(parseInt(aa),parseInt(mm),0).getDate()).padStart(2,'0')}`;
   const mesDb=`${aa}-${mm}`; // formato usado em leituras_acertadas.mes_ref
-  // Contar impedimentos GBS por leiturista no mês
-  const {data:impsRaw}=await sb.from('impedimentos').select('matricula,base,instalacao,reg')
-    .gte('data',di).lte('data',df).eq('responsabilidade','GBS');
-  if(!impsRaw||!impsRaw.length) return resumo;
-  // Descontar os já corrigidos manualmente (Acertadas)
-  const {data:acert}=await sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref',mesDb);
-  const acertSet=new Set((acert||[]).map(a=>`${a.instalacao}|${a.reg}`));
+  // Contar impedimentos GBS por leiturista no mês (busca paginada — Supabase limita a 1000 por página)
+  const impsRaw=[];
+  for(let from=0; ; from+=1000){
+    const {data:pagina}=await sb.from('impedimentos').select('matricula,base,instalacao,reg')
+      .gte('data',di).lte('data',df).eq('responsabilidade','GBS').range(from,from+999);
+    if(!pagina||!pagina.length) break;
+    impsRaw.push(...pagina);
+    if(pagina.length<1000) break;
+  }
+  if(!impsRaw.length) return resumo;
+  // Descontar os já corrigidos manualmente (Acertadas) — também paginado, por segurança
+  const acert=[];
+  for(let from=0; ; from+=1000){
+    const {data:pagina}=await sb.from('leituras_acertadas').select('instalacao,reg').eq('mes_ref',mesDb).range(from,from+999);
+    if(!pagina||!pagina.length) break;
+    acert.push(...pagina);
+    if(pagina.length<1000) break;
+  }
+  const acertSet=new Set(acert.map(a=>`${a.instalacao}|${a.reg}`));
   const imps=impsRaw.filter(r=>!acertSet.has(`${r.instalacao}|${r.reg}`));
   if(!imps.length) return resumo;
   // Agrupar só por matrícula — tudo que o leiturista fez conta pra base cadastrada dele,
