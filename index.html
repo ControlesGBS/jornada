@@ -2130,9 +2130,10 @@ async function dispararTratativa({tipo,matricula,nomeLeiturista,base,mesRef,deta
     .in('perfil',['supervisor']).eq('ativo',true);
   const sup=(supervisoresAtivos||[]).find(s=>normBase(s.base)===normBase(base));
   if(!sup) return {ok:false,motivo:'sem_supervisor'};
-  // Calcular prazo
+  // Calcular prazo — cada tipo tem seu próprio campo de config (os que ainda não têm campo próprio caem no padrão de 5 dias)
+  const prazoMap={impedimentos:cfg.prazo_imp,erros:cfg.prazo_err};
   const prazo=new Date();
-  prazo.setDate(prazo.getDate()+(prazoDiasOverride!=null?prazoDiasOverride:(cfg.prazo_dias||5)));
+  prazo.setDate(prazo.getDate()+(prazoDiasOverride!=null?prazoDiasOverride:(prazoMap[tipo]||5)));
   const prazoStr=prazo.toLocaleDateString('pt-BR');
   // Salvar tratativa
   const {data:trat}=await sb.from('tratativas').insert({
