@@ -1364,6 +1364,15 @@ function tipoRota(n){
   if(v===96) return {l:'GD',c:'b-gd'};
   return {l:'Rural',c:'b-rur'};
 }
+// Classificação simplificada de 3 baldes só pro painel mobile do leiturista (Total/Urbano/
+// Rural/Povoado) -- diferente do tipoRota() acima (que tem Localidade/Irrigantes/GD à parte
+// e alimenta os relatórios existentes). Aqui, por pedido explícito: 95 e 96 contam como Rural.
+function bucketLeiturista(n){
+  const v=parseInt(n)||0;
+  if(v>=1&&v<=79) return 'urbano';
+  if(v>=80&&v<=88) return 'povoado';
+  return 'rural';
+}
 
 let linhasExportJornada=[];
 
@@ -1582,7 +1591,6 @@ async function processarCemig(fileOverride){
     // Agrupar leituras por mat+data no navegador
     const grupos={};
     let mesRefImp = null; // mês de referência do cabeçalho (usado fora do loop)
-    const totalPorMat = {}; // conta todas as instalações do arquivo por matricula (independe da data)
     for(const sheetName of wb.SheetNames){
       const ws=wb.Sheets[sheetName];
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
@@ -1617,11 +1625,15 @@ async function processarCemig(fileOverride){
           const qtdDig=row[32]!=null?parseInt(String(row[32]).trim())||1:1;
           const reg=row[8]!=null?String(row[8]).trim():null;
           if(!dh||!hora||!mat||!ul) continue;
-          const m2=dh.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+          // A CEMIG às vezes exporta a data em formato americano (M/D/AAAA, sem zero à
+          // esquerda, ex: "7/21/2026") em vez do brasileiro (DD/MM/AAAA) -- sem isso, toda
+          // linha do arquivo era descartada em silêncio e o upload zerava sem dar erro.
+          // Aceita 1 ou 2 dígitos e decide dia/mês por qual valor é >12 (só um pode ser mês).
+          const m2=dh.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
           if(!m2) continue;
-          const dataStr=`${m2[3]}-${m2[2]}-${m2[1]}`;
-          // Contar todas as instalações do arquivo para o total do mês (independe da data)
-          if(mat) totalPorMat[mat]=(totalPorMat[mat]||0)+1;
+          let diaN=parseInt(m2[1],10), mesN=parseInt(m2[2],10);
+          if(mesN>12 && diaN<=12){ const tmp=diaN; diaN=mesN; mesN=tmp; }
+          const dataStr=`${m2[3]}-${String(mesN).padStart(2,'0')}-${String(diaN).padStart(2,'0')}`;
           const chave=`${mat}|${dataStr}`;
           if(!grupos[chave]) grupos[chave]={mat,data:dataStr,ul,uls:new Set(),rzs:[],lc_rotas:[],horas:[],imp_gbs:0,imp_cemig:0};
           if(ul) grupos[chave].uls.add(ul);
@@ -1659,8 +1671,12 @@ async function processarCemig(fileOverride){
     const registros=[];
 
     for(const g of Object.values(grupos)){
-      const horas=g.horas.filter(h=>h&&h.includes(':')).sort();
-      if(horas.length<1) continue;
+      // horas e lc_rotas são preenchidos juntos, na mesma iteração, pra cada leitura (ver
+      // parsing acima) -- filtrar os pares juntos aqui garante que urbano+rural+povoado
+      // sempre bate exatamente com qtd_leituras, mesmo descartando horas inválidas.
+      const pares=g.horas.map((h,i)=>({hora:h, rota:(g.lc_rotas[i]||'').split('|')[0]})).filter(p=>p.hora&&p.hora.includes(':'));
+      if(pares.length<1) continue;
+      const horas=pares.map(p=>p.hora).sort();
       const hi=horas[0], hf=horas[horas.length-1];
       const span=toMin(hf)-toMin(hi);
       // Gaps >= 5min (mínimo do slicer)
@@ -1671,6 +1687,13 @@ async function processarCemig(fileOverride){
       }
       const rzs=[...new Set(g.rzs)].sort().join(',');
       const rotasUnicas=[...new Set(g.lc_rotas)];
+      let leiturasUrbano=0, leiturasRural=0, leiturasPovoado=0;
+      pares.forEach(p=>{
+        const b=bucketLeiturista(p.rota);
+        if(b==='urbano') leiturasUrbano++;
+        else if(b==='povoado') leiturasPovoado++;
+        else leiturasRural++;
+      });
       registros.push({
         matricula:g.mat,
         data:g.data,
@@ -1680,6 +1703,9 @@ async function processarCemig(fileOverride){
         hora_final:hf,
         span_min:span,
         qtd_leituras:horas.length,
+        leituras_urbano:leiturasUrbano,
+        leituras_rural:leiturasRural,
+        leituras_povoado:leiturasPovoado,
         gaps_json:JSON.stringify(gaps),
         rotas_json:JSON.stringify(rotasUnicas),
         horas_json:JSON.stringify(horas),
@@ -1773,18 +1799,33 @@ async function processarCemig(fileOverride){
       prog.textContent=`Jornada + ${impsEnriq.length} impedimentos salvos!`;
     }
 
-    // Salvar total de leituras por matricula do arquivo (mês do cabeçalho)
-    if(mesRefImp && Object.keys(totalPorMat).length){
-      // Pegar o RZ de cada leiturista a partir dos grupos
-      const rzPorMat={};
-      Object.values(grupos).forEach(g=>{ if(g.mat&&g.rzs[0]) rzPorMat[g.mat]=g.rzs[0]; });
-      const rzsDoArquivo=[...new Set(Object.values(rzPorMat))];
+    // Salvar total de leituras por matricula+RZ do arquivo (mês do cabeçalho).
+    // Antes isso só gravava 1 linha por matricula (RZ "escolhido" arbitrariamente, o
+    // último visto no processamento) com o total do mês inteiro -- se o leiturista
+    // trabalhasse mais de um RZ no mês, a quebra por RZ ficava errada (mas a soma total
+    // batia, por isso o bug não aparecia na Premiação, que soma todas as linhas).
+    // Agora conta por leitura individual (g.rzs, paralelo a g.horas), então cada RZ
+    // realmente trabalhado vira sua própria linha com o total certo.
+    if(mesRefImp){
+      const totalPorMatRz={};
+      Object.values(grupos).forEach(g=>{
+        if(!g.mat) return;
+        g.rzs.forEach(rzLeitura=>{
+          if(!rzLeitura) return;
+          if(!totalPorMatRz[g.mat]) totalPorMatRz[g.mat]={};
+          totalPorMatRz[g.mat][rzLeitura]=(totalPorMatRz[g.mat][rzLeitura]||0)+1;
+        });
+      });
+      const rzsDoArquivo=[...new Set(Object.values(totalPorMatRz).flatMap(o=>Object.keys(o)))];
       // Deletar totais do mesmo mes+rz
       for(const rz of rzsDoArquivo)
         await sb.from('totais_rz').delete().eq('mes_ref',mesRefImp).eq('rz',rz);
-      const totaisRecs=Object.entries(totalPorMat).map(([matricula,total_leituras])=>({
-        mes_ref:mesRefImp, rz:rzPorMat[matricula]||'00', matricula, total_leituras
-      }));
+      const totaisRecs=[];
+      Object.entries(totalPorMatRz).forEach(([matricula,porRz])=>{
+        Object.entries(porRz).forEach(([rz,total_leituras])=>{
+          totaisRecs.push({mes_ref:mesRefImp, rz, matricula, total_leituras});
+        });
+      });
       if(totaisRecs.length){
         const LOTE4=500;
         for(let i=0;i<totaisRecs.length;i+=LOTE4)
