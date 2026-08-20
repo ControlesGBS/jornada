@@ -1671,10 +1671,14 @@ async function processarCemig(fileOverride){
     const registros=[];
 
     for(const g of Object.values(grupos)){
-      // horas e lc_rotas são preenchidos juntos, na mesma iteração, pra cada leitura (ver
-      // parsing acima) -- filtrar os pares juntos aqui garante que urbano+rural+povoado
-      // sempre bate exatamente com qtd_leituras, mesmo descartando horas inválidas.
-      const pares=g.horas.map((h,i)=>({hora:h, rota:(g.lc_rotas[i]||'').split('|')[0]})).filter(p=>p.hora&&p.hora.includes(':'));
+      // horas, rzs e lc_rotas são preenchidos juntos, na mesma iteração, pra cada leitura
+      // (ver parsing acima) -- filtrar os pares juntos aqui garante que urbano+rural+povoado
+      // e o total por RZ (totalPorMatRz, mais abaixo) sempre batem exatamente com
+      // qtd_leituras, mesmo descartando horas inválidas/malformadas (sem isso, uma linha
+      // com horário ruim virava leitura "fantasma": contava em totais_rz mas não em
+      // jornada, inflando o KPI "Qtd. Leituras" acima do total real da Cemig).
+      const pares=g.horas.map((h,i)=>({hora:h, rota:(g.lc_rotas[i]||'').split('|')[0], rz:g.rzs[i]})).filter(p=>p.hora&&p.hora.includes(':'));
+      g.paresValidos=pares;
       if(pares.length<1) continue;
       const horas=pares.map(p=>p.hora).sort();
       const hi=horas[0], hf=horas[horas.length-1];
@@ -1717,23 +1721,27 @@ async function processarCemig(fileOverride){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Delete por mes_ref + ul: usa todas as ULs do arquivo
-    // g.uls contém todas as ULs de cada leiturista no dia
-    const ulsNovas=[...new Set(
-      Object.values(grupos).flatMap(g=>g.uls?[...g.uls]:(g.ul?[g.ul]:[]))
-    )].filter(Boolean);
-    const LOTE_DEL=100;
-    for(let i=0;i<ulsNovas.length;i+=LOTE_DEL){
-      const loteU=ulsNovas.slice(i,i+LOTE_DEL);
+    // Delete por mes_ref + matrícula: a chave real da tabela é (matricula, data), não a
+    // UL -- apagar por UL deixava linha antiga órfã pra trás quando a UL de um
+    // leiturista/dia mudava entre uploads (rota reatribuída, arquivo reprocessado etc.),
+    // e como não existia trava única na tabela até agora, o insert seguinte só empilhava
+    // uma linha nova em cima da órfã em vez de dar erro de conflito -- foi assim que
+    // 07/2026 acumulou linhas duplicadas (algumas matrículas com até 7 linhas no mesmo dia).
+    const matriculasNovas=[...new Set(Object.values(grupos).map(g=>g.mat).filter(Boolean))];
+    const LOTE_DEL=200;
+    for(let i=0;i<matriculasNovas.length;i+=LOTE_DEL){
+      const loteM=matriculasNovas.slice(i,i+LOTE_DEL);
       await sb.from('jornada').delete()
         .eq('mes_ref',mesRefImp)
-        .in('ul',loteU);
+        .in('matricula',loteM);
     }
 
-    // Inserir novos registros
+    // Upsert em vez de insert puro -- reforço de segurança: mesmo que o delete acima
+    // por algum motivo deixe uma linha pra trás, o upsert (onConflict na trava única
+    // matricula+data) sobrescreve em vez de duplicar ou falhar.
     const LOTE=200;
     for(let i=0;i<registros.length;i+=LOTE){
-      const {error}=await sb.from('jornada').insert(registros.slice(i,i+LOTE));
+      const {error}=await sb.from('jornada').upsert(registros.slice(i,i+LOTE), {onConflict:'matricula,data'});
       if(error) throw error;
     }
     // Salvar impedimentos na tabela impedimentos
@@ -1810,7 +1818,11 @@ async function processarCemig(fileOverride){
       const totalPorMatRz={};
       Object.values(grupos).forEach(g=>{
         if(!g.mat) return;
-        g.rzs.forEach(rzLeitura=>{
+        // Usa g.paresValidos (já filtrado por horário válido, ver acima) em vez de
+        // g.rzs bruto -- senão conta leituras com horário inválido que a jornada
+        // descarta, inflando o total acima do que a jornada realmente registra.
+        (g.paresValidos||[]).forEach(p=>{
+          const rzLeitura=p.rz;
           if(!rzLeitura) return;
           if(!totalPorMatRz[g.mat]) totalPorMatRz[g.mat]={};
           totalPorMatRz[g.mat][rzLeitura]=(totalPorMatRz[g.mat][rzLeitura]||0)+1;
