@@ -1721,24 +1721,17 @@ async function processarCemig(fileOverride){
 
     prog.textContent=`${registros.length} dias de jornada. Salvando...`;
 
-    // Delete por mes_ref + matrícula: a chave real da tabela é (matricula, data), não a
-    // UL -- apagar por UL deixava linha antiga órfã pra trás quando a UL de um
-    // leiturista/dia mudava entre uploads (rota reatribuída, arquivo reprocessado etc.),
-    // e como não existia trava única na tabela até agora, o insert seguinte só empilhava
-    // uma linha nova em cima da órfã em vez de dar erro de conflito -- foi assim que
-    // 07/2026 acumulou linhas duplicadas (algumas matrículas com até 7 linhas no mesmo dia).
-    const matriculasNovas=[...new Set(Object.values(grupos).map(g=>g.mat).filter(Boolean))];
-    const LOTE_DEL=200;
-    for(let i=0;i<matriculasNovas.length;i+=LOTE_DEL){
-      const loteM=matriculasNovas.slice(i,i+LOTE_DEL);
-      await sb.from('jornada').delete()
-        .eq('mes_ref',mesRefImp)
-        .in('matricula',loteM);
-    }
-
-    // Upsert em vez de insert puro -- reforço de segurança: mesmo que o delete acima
-    // por algum motivo deixe uma linha pra trás, o upsert (onConflict na trava única
-    // matricula+data) sobrescreve em vez de duplicar ou falhar.
+    // Sem delete antes do upsert -- essa tabela é alimentada por VÁRIOS arquivos
+    // (um por RZ) dentro do mesmo mês, e o mesmo leiturista pode aparecer em
+    // arquivos diferentes (dias diferentes, RZs diferentes). Um delete por
+    // matrícula+mês (tentativa anterior) apagava o mês INTEIRO daquela matrícula
+    // a cada arquivo processado -- então processar a RZ07 depois da RZ01 apagava
+    // os dias que a RZ01 já tinha gravado pra um leiturista que aparece nas duas,
+    // destruindo dado válido a cada arquivo novo do lote (causa real da divergência
+    // jornada x totais_rz em 08/2026: só sobrava o que o ÚLTIMO arquivo do lote
+    // tocava). O upsert sozinho (onConflict na trava única matricula+data) já
+    // substitui exatamente o dia certo quando esse dia específico é reprocessado,
+    // sem tocar nos outros dias/arquivos -- não precisa (e não deve) apagar nada antes.
     const LOTE=200;
     for(let i=0;i<registros.length;i+=LOTE){
       const {error}=await sb.from('jornada').upsert(registros.slice(i,i+LOTE), {onConflict:'matricula,data'});
