@@ -29,6 +29,7 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .kpi{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:10px 14px;text-align:center}
 .kpi-label{font-size:10px;color:#4a7a4a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
 .kpi-value{font-size:22px;font-weight:500;color:#1a4a1a}
+.sem-km .th-km,.sem-km .td-km,.sem-km #kpi-km{display:none}
 
 /* PAINEL CONGELADO */
 .painel-inner{display:flex;flex-direction:column;height:calc(100vh - 88px);overflow:hidden}
@@ -163,6 +164,7 @@ td.rota-col{text-align:left;font-size:14px}
       <div><label>Mês/Ano</label><select id="f-mes" onchange="carregarMatriculas()"></select></div>
       <div><label>Base</label><select id="f-base" onchange="carregarMatriculas()"><option value="">Todas</option></select></div>
       <div><label>Matrícula / Leiturista</label><select id="f-mat" onchange="carregarDados()"><option value="">— selecione —</option></select></div>
+      <div><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;font-weight:400;white-space:nowrap;height:30px"><input type="checkbox" id="f-moto" onchange="carregarMatriculas()"> Só motociclistas</label></div>
       <div class="slicer-box">
         <label>Intervalo a partir de</label>
         <input type="range" id="slicer" min="5" max="60" value="10" step="1"
@@ -200,6 +202,7 @@ td.rota-col{text-align:left;font-size:14px}
             <th>Total imp.</th>
             <th>Tipo rota (local)</th>
             <th>Intervalos ≥30min</th>
+            <th class="th-km">KM Rodada</th>
           </tr></thead>
           <tbody id="tbody"></tbody>
         </table>
@@ -481,6 +484,10 @@ const SEMANAS = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 // dados carregados do banco para o mês selecionado
 let dadosMes = [];
 let localMap = {};
+let kmPorDia = {};
+let kmMesTotal = 0;
+let ehMotociclista = false;
+let motociclistasSet = null;
 
 function irPara(id,btn){
   if(id==='admin'){
@@ -1289,6 +1296,36 @@ async function iniciarFiltros(){
   await carregarMatriculas();
 }
 
+async function carregarMotociclistas(){
+  if(motociclistasSet) return motociclistasSet;
+  const {data}=await sb.from('veiculos').select('matricula,tipo');
+  motociclistasSet=new Set((data||[]).filter(v=>/moto/i.test(v.tipo||'')).map(v=>v.matricula).filter(Boolean));
+  return motociclistasSet;
+}
+
+async function carregarKmRodado(mat,di,df){
+  kmPorDia={}; kmMesTotal=0; ehMotociclista=false;
+  if(!mat) return;
+  let regs=[], _from=0;
+  while(true){
+    const {data,error}=await sb.from('registros_km').select('data,hora_inicio,km_rodado,placa')
+      .eq('matricula',mat).gte('data',di).lte('data',df).range(_from,_from+999);
+    if(error||!data||!data.length) break;
+    regs=[...regs,...data];
+    if(data.length<1000) break;
+    _from+=1000;
+  }
+  regs.forEach(r=>{
+    const h=(r.hora_inicio||'').slice(0,5);
+    if(h<'07:00'||h>'18:00') return;
+    const km=r.km_rodado||0;
+    kmPorDia[r.data]=(kmPorDia[r.data]||0)+km;
+    kmMesTotal+=km;
+  });
+  const motoSet=await carregarMotociclistas();
+  ehMotociclista=motoSet.has(mat);
+}
+
 async function carregarMatriculas(){
   const base=PERFIL_BASE||document.getElementById('f-base').value;
   const mes=document.getElementById('f-mes').value;
@@ -1312,6 +1349,11 @@ async function carregarMatriculas(){
     lista=lista.filter(r=>comDados.has(r.matricula));
   }
 
+  if(document.getElementById('f-moto').checked){
+    const motoSet=await carregarMotociclistas();
+    lista=lista.filter(r=>motoSet.has(r.matricula));
+  }
+
   const sel=document.getElementById('f-mat');
   const atual=sel.value;
   sel.innerHTML='<option value="">— selecione —</option>';
@@ -1324,7 +1366,7 @@ async function carregarMatriculas(){
 async function carregarDados(){
   const mat=document.getElementById('f-mat').value;
   const mes=document.getElementById('f-mes').value;
-  if(!mat||!mes){ dadosMes=[]; renderTabela(); return; }
+  if(!mat||!mes){ dadosMes=[]; kmPorDia={}; kmMesTotal=0; ehMotociclista=false; renderTabela(); return; }
 
   const [mm,aa]=mes.split('/');
   const di=`${aa}-${mm}-01`;
@@ -1332,14 +1374,16 @@ async function carregarDados(){
   const df=`${aa}-${mm}-${String(diasMes).padStart(2,'0')}`;
 
   document.getElementById('tbody').innerHTML=
-    '<tr><td colspan="10" class="status-msg">Carregando...</td></tr>';
+    '<tr><td colspan="15" class="status-msg">Carregando...</td></tr>';
 
-  const {data,error}=await sb
-    .from('jornada')
-    .select('data,rz,hora_inicial,hora_final,span_min,qtd_leituras,gaps_json,rotas_json,horas_json,imp_gbs,imp_cemig')
-    .eq('matricula',mat)
-    .gte('data',di).lte('data',df)
-    .order('data');
+  const [{data,error}]=await Promise.all([
+    sb.from('jornada')
+      .select('data,rz,hora_inicial,hora_final,span_min,qtd_leituras,gaps_json,rotas_json,horas_json,imp_gbs,imp_cemig')
+      .eq('matricula',mat)
+      .gte('data',di).lte('data',df)
+      .order('data'),
+    carregarKmRodado(mat,di,df)
+  ]);
 
   if(error){console.error(error);return;}
   dadosMes=data||[];
@@ -1392,6 +1436,8 @@ function renderTabela(){
   const limiar=parseInt(document.getElementById('slicer').value);
   if(!mat||!mes) return;
 
+  document.getElementById('pag-painel').classList.toggle('sem-km',!ehMotociclista);
+
   const [mm,aa]=mes.split('/');
   const diasMes=new Date(parseInt(aa),parseInt(mm),0).getDate();
   const diaSem0=new Date(parseInt(aa),parseInt(mm)-1,1).getDay();
@@ -1416,10 +1462,12 @@ function renderTabela(){
 
     if(!grupo){
       const corDia=fds?'color:#dc2626;font-weight:500':'';
+      const kmDia0=kmPorDia[key];
       rows.push(`<tr class="sem-trab">
         <td>${mat}</td><td>—</td><td>${d}</td>
         <td style="font-size:11px;${corDia}">${SEMANAS[sem]}</td>
-        <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`);
+        <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        <td class="td-km">${kmDia0?kmDia0.toLocaleString('pt-BR',{maximumFractionDigits:1}):''}</td></tr>`);
       continue;
     }
 
@@ -1483,6 +1531,7 @@ function renderTabela(){
 
     const corDia2=fds?'color:#dc2626;font-weight:500':'';
     const pouco=totalLeitDia<10;
+    const kmDia=kmPorDia[key];
     rows.push(`<tr class="${pouco?'sem-trab':''}">
       <td>${mat}</td>
       <td>${rzStr||'—'}</td>
@@ -1498,6 +1547,7 @@ function renderTabela(){
       <td>${totalImpDia||'—'}</td>
       <td class="rota-col">${badges}</td>
       <td>${qtdIntervalos30||'—'}</td>
+      <td class="td-km">${kmDia?kmDia.toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}</td>
     </tr>`);
   }
 
@@ -1507,7 +1557,7 @@ function renderTabela(){
     const key=`${aa}-${mm}-${String(d).padStart(2,'0')}`;
     const sem=(diaSem0+d-1)%7;
     const grupo=porData[key];
-    if(!grupo){ linhasExportJornada.push({'Mat.':mat,'RZ':'—','Dia':d,'Sem.':SEMANAS[sem],'H. inicial':'','H. final':'','Intervalo':'','H. trab.':'','Leituras':0,'Imp. GBS':'','Imp. CEMIG':'','Total imp.':'','Tipo rota':'','Intervalos ≥30min':''}); continue; }
+    if(!grupo){ linhasExportJornada.push({'Mat.':mat,'RZ':'—','Dia':d,'Sem.':SEMANAS[sem],'H. inicial':'','H. final':'','Intervalo':'','H. trab.':'','Leituras':0,'Imp. GBS':'','Imp. CEMIG':'','Total imp.':'','Tipo rota':'','Intervalos ≥30min':'',...(ehMotociclista?{'KM Rodada':kmPorDia[key]||''}:{})}); continue; }
     let todasHoras=[],totalLeitDia=0,todasRotas=[],todosRzs=[];
     grupo.linhas.forEach(ln=>{
       const h=JSON.parse(ln.horas_json||'[]');
@@ -1544,7 +1594,8 @@ function renderTabela(){
       'Imp. CEMIG':impCemig||'',
       'Total imp.':(impGbs+impCemig)||'',
       'Tipo rota':tipoStr,
-      'Intervalos ≥30min':qtdIntervalos30||''
+      'Intervalos ≥30min':qtdIntervalos30||'',
+      ...(ehMotociclista?{'KM Rodada':kmPorDia[key]||''}:{})
     });
   }
 
@@ -1561,7 +1612,8 @@ function renderTabela(){
     <div class="kpi"><div class="kpi-label">Média de leituras</div><div class="kpi-value">${ml}</div></div>
     <div class="kpi"><div class="kpi-label">Total de leituras</div><div class="kpi-value">${totalLeit.toLocaleString('pt-BR')}</div></div>
     <div class="kpi"><div class="kpi-label">Impedimentos GBS</div><div class="kpi-value">${totalImpGbs.toLocaleString('pt-BR')}</div></div>
-    <div class="kpi"><div class="kpi-label">Produtividade/hora</div><div class="kpi-value">${leiturasPorHora.toLocaleString('pt-BR',{maximumFractionDigits:1})}</div></div>`;
+    <div class="kpi"><div class="kpi-label">Produtividade/hora</div><div class="kpi-value">${leiturasPorHora.toLocaleString('pt-BR',{maximumFractionDigits:1})}</div></div>
+    <div class="kpi" id="kpi-km"><div class="kpi-label">KM rodada no mês</div><div class="kpi-value">${kmMesTotal.toLocaleString('pt-BR',{maximumFractionDigits:1})}</div></div>`;
   document.getElementById('totais').innerHTML=`
     <div><span>Total leituras:</span>${totalLeit.toLocaleString('pt-BR')}</div>
     <div><span>Total horas trabalhadas:</span>${toHM(totalTrabMin)}</div>
