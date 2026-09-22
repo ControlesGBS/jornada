@@ -1296,20 +1296,42 @@ async function iniciarFiltros(){
   await carregarMatriculas();
 }
 
+// Não dá pra cruzar por matrícula: veiculos.matricula e registros_km.matricula estão
+// sempre nulos nessa base (nunca foram preenchidos). O vínculo real é pelo nome do
+// condutor (veiculos.condutor / registros_km.condutor), comparado sem acento/caixa.
+function normNome(s){
+  return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,' ').trim().toUpperCase();
+}
+
+let veiculosCache=null;
+async function carregarVeiculos(){
+  if(veiculosCache) return veiculosCache;
+  const {data}=await sb.from('veiculos').select('placa,condutor,tipo');
+  veiculosCache=data||[];
+  return veiculosCache;
+}
+
 async function carregarMotociclistas(){
   if(motociclistasSet) return motociclistasSet;
-  const {data}=await sb.from('veiculos').select('matricula,tipo');
-  motociclistasSet=new Set((data||[]).filter(v=>/moto/i.test(v.tipo||'')).map(v=>v.matricula).filter(Boolean));
+  const vs=await carregarVeiculos();
+  motociclistasSet=new Set(vs.filter(v=>/moto/i.test(v.tipo||'')).map(v=>normNome(v.condutor)).filter(Boolean));
   return motociclistasSet;
 }
 
-async function carregarKmRodado(mat,di,df){
+async function carregarKmRodado(mat,nome,di,df){
   kmPorDia={}; kmMesTotal=0; ehMotociclista=false;
-  if(!mat) return;
+  if(!mat||!nome) return;
+  const nomeNorm=normNome(nome);
+  const motoSet=await carregarMotociclistas();
+  ehMotociclista=motoSet.has(nomeNorm);
+  if(!ehMotociclista) return;
+  const vs=await carregarVeiculos();
+  const condutoresExatos=[...new Set(vs.filter(v=>normNome(v.condutor)===nomeNorm).map(v=>v.condutor))];
+  if(!condutoresExatos.length) return;
   let regs=[], _from=0;
   while(true){
-    const {data,error}=await sb.from('registros_km').select('data,hora_inicio,km_rodado,placa')
-      .eq('matricula',mat).gte('data',di).lte('data',df).range(_from,_from+999);
+    const {data,error}=await sb.from('registros_km').select('data,hora_inicio,km_rodado')
+      .in('condutor',condutoresExatos).gte('data',di).lte('data',df).range(_from,_from+999);
     if(error||!data||!data.length) break;
     regs=[...regs,...data];
     if(data.length<1000) break;
@@ -1322,10 +1344,9 @@ async function carregarKmRodado(mat,di,df){
     kmPorDia[r.data]=(kmPorDia[r.data]||0)+km;
     kmMesTotal+=km;
   });
-  const motoSet=await carregarMotociclistas();
-  ehMotociclista=motoSet.has(mat);
 }
 
+let nomesPorMatricula={};
 async function carregarMatriculas(){
   const base=PERFIL_BASE||document.getElementById('f-base').value;
   const mes=document.getElementById('f-mes').value;
@@ -1333,6 +1354,8 @@ async function carregarMatriculas(){
   if(base) q=q.ilike('base',base);
   const {data}=await q;
   let lista=data||[];
+  nomesPorMatricula={};
+  lista.forEach(r=>nomesPorMatricula[r.matricula]=r.nome_leiturista);
 
   // Filtrar: só quem tem dados de jornada no mês selecionado
   if(mes){
@@ -1351,7 +1374,7 @@ async function carregarMatriculas(){
 
   if(document.getElementById('f-moto').checked){
     const motoSet=await carregarMotociclistas();
-    lista=lista.filter(r=>motoSet.has(r.matricula));
+    lista=lista.filter(r=>motoSet.has(normNome(r.nome_leiturista)));
   }
 
   const sel=document.getElementById('f-mat');
@@ -1382,7 +1405,7 @@ async function carregarDados(){
       .eq('matricula',mat)
       .gte('data',di).lte('data',df)
       .order('data'),
-    carregarKmRodado(mat,di,df)
+    carregarKmRodado(mat,nomesPorMatricula[mat],di,df)
   ]);
 
   if(error){console.error(error);return;}
