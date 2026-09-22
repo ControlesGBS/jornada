@@ -1650,8 +1650,9 @@ function renderTabela(){
 
     const corDia2=fds?'color:#dc2626;font-weight:500':'';
     const pouco=totalLeitDia<10;
-    // Fim de semana com leitura registrada conta normal; sem leitura, KM não entra no relatório.
-    const kmDia=(fds&&totalLeitDia===0)?null:kmPorDia[key];
+    // Fim de semana sem leitura: KM não entra no relatório, nem é considerado problema (dia sem expectativa de trabalho).
+    const suprimidoFDS=fds&&totalLeitDia===0;
+    const kmDia=suprimidoFDS?null:kmPorDia[key];
     if(kmDia) kmMesEfetivo+=kmDia;
     rows.push(`<tr class="${pouco?'sem-trab':''}">
       <td>${mat}</td>
@@ -1668,7 +1669,7 @@ function renderTabela(){
       <td>${totalImpDia||'—'}</td>
       <td class="rota-col">${badges}</td>
       <td>${qtdIntervalos30||'—'}</td>
-      <td class="td-km">${kmDia?kmDia.toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}</td>
+      <td class="td-km">${kmDia?kmDia.toLocaleString('pt-BR',{maximumFractionDigits:1}):(suprimidoFDS?'—':'<span style="color:#c62828;font-weight:600">Sem KM registrado, verificar!</span>')}</td>
     </tr>`);
   }
 
