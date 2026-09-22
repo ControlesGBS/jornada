@@ -1314,32 +1314,38 @@ async function carregarVeiculos(){
   return veiculosCache;
 }
 
-async function carregarKmRodado(mat,nome,funcao,di,df){
-  kmPorDia={};
-  ehMotociclista=ehFuncaoMoto(funcao);
-  if(!mat||!ehMotociclista) return;
-  const vs=await carregarVeiculos();
-  // Prioriza o vínculo oficial placa->matrícula (tela Locação de Motos > Vinculação);
-  // cai pro nome do condutor só quando aquele veículo ainda não foi vinculado lá.
-  const placasVinculadas=vs.filter(v=>v.matricula===mat).map(v=>v.placa);
-  const usaPlaca=placasVinculadas.length>0;
-  let condutoresExatos=[];
-  if(!usaPlaca){
-    const nomeNorm=normNome(nome);
-    condutoresExatos=[...new Set(vs.filter(v=>normNome(v.condutor)===nomeNorm).map(v=>v.condutor))];
-    if(!condutoresExatos.length) return;
-  }
+async function buscarRegistrosKmPor(filtro,di,df){
   let regs=[], _from=0;
   while(true){
-    let q=sb.from('registros_km').select('data,hora_inicio,km_rodado').gte('data',di).lte('data',df).range(_from,_from+999);
-    q=usaPlaca?q.in('placa',placasVinculadas):q.in('condutor',condutoresExatos);
-    const {data,error}=await q;
+    const {data,error}=await filtro(sb.from('registros_km').select('id,data,hora_inicio,km_rodado').gte('data',di).lte('data',df).range(_from,_from+999));
     if(error||!data||!data.length) break;
     regs=[...regs,...data];
     if(data.length<1000) break;
     _from+=1000;
   }
+  return regs;
+}
+
+async function carregarKmRodado(mat,nome,funcao,di,df){
+  kmPorDia={};
+  ehMotociclista=ehFuncaoMoto(funcao);
+  if(!mat||!ehMotociclista) return;
+  const vs=await carregarVeiculos();
+  // Junta os dois vínculos possíveis: placa vinculada oficialmente (Locação de Motos >
+  // Vinculação) e nome do condutor. Não usa só um, porque às vezes a placa vinculada é de
+  // uma moto antiga/parada e as viagens reais estão só sob o nome (moto trocada depois).
+  const placasVinculadas=vs.filter(v=>v.matricula===mat).map(v=>v.placa);
+  const nomeNorm=normNome(nome);
+  const condutoresExatos=[...new Set(vs.filter(v=>normNome(v.condutor)===nomeNorm).map(v=>v.condutor))];
+  if(!placasVinculadas.length && !condutoresExatos.length) return;
+
+  let regs=[];
+  if(placasVinculadas.length) regs=[...regs,...await buscarRegistrosKmPor(q=>q.in('placa',placasVinculadas),di,df)];
+  if(condutoresExatos.length) regs=[...regs,...await buscarRegistrosKmPor(q=>q.in('condutor',condutoresExatos),di,df)];
+  const vistos=new Set();
   regs.forEach(r=>{
+    if(vistos.has(r.id)) return;
+    vistos.add(r.id);
     const h=(r.hora_inicio||'').slice(0,5);
     if(h<'07:00'||h>'18:00') return;
     const km=r.km_rodado||0;
