@@ -183,6 +183,7 @@ td.rota-col{text-align:left;font-size:14px}
     </div>
   </div>
   <div class="painel-tabela">
+    <div id="aviso-km-exclusao" style="display:none;background:#fdecea;border:1px solid #e57373;color:#b71c1c;border-radius:8px;padding:10px 16px;margin-bottom:8px;font-size:12px;font-weight:500"></div>
     <div class="twrap">
       <div class="twrap-hdr" style="display:flex;justify-content:space-between;align-items:center"><span>☰ Jornada detalhada</span><span style="display:flex;gap:6px"><button onclick="diagnosticoKm()" id="btn-diag-km" style="background:#8a5a00;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">🔍 Diagnóstico KM</button><button onclick="downloadExcelJornada()" style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">⬇ Excel</button></span></div>
       <div id="diag-km-resultado" style="display:none;background:#fff;border:1px solid #c0dcc0;border-top:none;padding:10px 16px;font-size:12px;max-height:260px;overflow:auto"></div>
@@ -1327,9 +1328,19 @@ async function buscarRegistrosKmPor(filtro,di,df){
   return regs;
 }
 
+function renderAvisoKmExclusao(exc,condutorPorPlaca){
+  const el=document.getElementById('aviso-km-exclusao');
+  if(!exc||!exc.length){ el.style.display='none'; el.innerHTML=''; return; }
+  el.innerHTML=exc.map(e=>
+    `🚫 A moto <b>${e.placa}</b>${condutorPorPlaca[e.placa]?' — '+condutorPorPlaca[e.placa]:''} foi removida do relatório de KM desse mês por odômetro não confiável: ${e.motivo}. Nenhum KM desse veículo entra no total.`
+  ).join('<br>');
+  el.style.display='block';
+}
+
 async function carregarKmRodado(mat,nome,funcao,di,df){
   kmPorDia={};
   ehMotociclista=ehFuncaoMoto(funcao);
+  renderAvisoKmExclusao(null);
   if(!mat||!ehMotociclista) return;
   const vs=await carregarVeiculos();
   // Junta os dois vínculos possíveis: placa vinculada oficialmente (Locação de Motos >
@@ -1339,6 +1350,18 @@ async function carregarKmRodado(mat,nome,funcao,di,df){
   const nomeNorm=normNome(nome);
   const condutoresExatos=[...new Set(vs.filter(v=>normNome(v.condutor)===nomeNorm).map(v=>v.condutor))];
   if(!placasVinculadas.length && !condutoresExatos.length) return;
+
+  const placasCondutor=vs.filter(v=>condutoresExatos.includes(v.condutor)).map(v=>v.placa);
+  const placasRelevantes=[...new Set([...placasVinculadas,...placasCondutor])];
+  if(placasRelevantes.length){
+    const {data:exc}=await sb.from('registros_km_exclusoes').select('placa,motivo')
+      .eq('mes_ref',di).eq('tipo','veiculo_invalidado').in('placa',placasRelevantes);
+    if(exc&&exc.length){
+      const condutorPorPlaca={};
+      vs.forEach(v=>condutorPorPlaca[v.placa]=v.condutor);
+      renderAvisoKmExclusao(exc,condutorPorPlaca);
+    }
+  }
 
   let regs=[];
   if(placasVinculadas.length) regs=[...regs,...await buscarRegistrosKmPor(q=>q.in('placa',placasVinculadas),di,df)];
@@ -1460,7 +1483,7 @@ async function carregarMatriculas(){
 async function carregarDados(){
   const mat=document.getElementById('f-mat').value;
   const mes=document.getElementById('f-mes').value;
-  if(!mat||!mes){ dadosMes=[]; kmPorDia={}; ehMotociclista=false; renderTabela(); return; }
+  if(!mat||!mes){ dadosMes=[]; kmPorDia={}; ehMotociclista=false; renderAvisoKmExclusao(null); renderTabela(); return; }
 
   const [mm,aa]=mes.split('/');
   const di=`${aa}-${mm}-01`;
