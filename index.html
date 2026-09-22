@@ -184,7 +184,8 @@ td.rota-col{text-align:left;font-size:14px}
   </div>
   <div class="painel-tabela">
     <div class="twrap">
-      <div class="twrap-hdr" style="display:flex;justify-content:space-between;align-items:center"><span>☰ Jornada detalhada</span><button onclick="downloadExcelJornada()" style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">⬇ Excel</button></div>
+      <div class="twrap-hdr" style="display:flex;justify-content:space-between;align-items:center"><span>☰ Jornada detalhada</span><span style="display:flex;gap:6px"><button onclick="diagnosticoKm()" id="btn-diag-km" style="background:#8a5a00;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">🔍 Diagnóstico KM</button><button onclick="downloadExcelJornada()" style="background:#2d7a2d;color:#fff;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px">⬇ Excel</button></span></div>
+      <div id="diag-km-resultado" style="display:none;background:#fff;border:1px solid #c0dcc0;border-top:none;padding:10px 16px;font-size:12px;max-height:260px;overflow:auto"></div>
       <div class="tabela-scroll">
         <table>
           <thead><tr>
@@ -1351,6 +1352,68 @@ async function carregarKmRodado(mat,nome,funcao,di,df){
     const km=r.km_rodado||0;
     kmPorDia[r.data]=(kmPorDia[r.data]||0)+km;
   });
+}
+
+// Roda com a sessão logada da própria pessoa (por isso enxerga matriculas/jornada, que
+// têm RLS) -- lista quem é motociclista, tem leitura no mês, mas não achou nenhum KM, e
+// tenta explicar o motivo (sem vínculo, vínculo sem dados, etc).
+async function diagnosticoKm(){
+  const painel=document.getElementById('diag-km-resultado');
+  const mes=document.getElementById('f-mes').value;
+  if(!mes){ alert('Selecione o mês antes de rodar o diagnóstico.'); return; }
+  painel.style.display='block';
+  painel.innerHTML='Rodando diagnóstico...';
+
+  const [mm,aa]=mes.split('/');
+  const di=`${aa}-${mm}-01`;
+  const diasMes=new Date(parseInt(aa),parseInt(mm),0).getDate();
+  const df=`${aa}-${mm}-${String(diasMes).padStart(2,'0')}`;
+  const mesRef=di;
+
+  const {data:mats}=await sb.from('matriculas').select('matricula,nome_leiturista,funcao').eq('situacao','Ativo');
+  const motociclistas=(mats||[]).filter(m=>ehFuncaoMoto(m.funcao));
+
+  let comLeitura=new Set(), _from=0;
+  while(true){
+    const {data:jl}=await sb.from('jornada').select('matricula').eq('mes_ref',mesRef).range(_from,_from+999);
+    if(!jl||!jl.length) break;
+    jl.forEach(r=>comLeitura.add(r.matricula));
+    if(jl.length<1000) break;
+    _from+=1000;
+  }
+
+  const vs=await carregarVeiculos();
+  const linhas=[];
+  for(const m of motociclistas){
+    if(!comLeitura.has(m.matricula)) continue;
+    const placasVinculadas=vs.filter(v=>v.matricula===m.matricula).map(v=>v.placa);
+    const nomeNorm=normNome(m.nome_leiturista);
+    const condutoresExatos=[...new Set(vs.filter(v=>normNome(v.condutor)===nomeNorm).map(v=>v.condutor))];
+    let regsPlaca=[],regsNome=[];
+    if(placasVinculadas.length) regsPlaca=await buscarRegistrosKmPor(q=>q.in('placa',placasVinculadas),di,df);
+    if(condutoresExatos.length) regsNome=await buscarRegistrosKmPor(q=>q.in('condutor',condutoresExatos),di,df);
+    const total=new Set([...regsPlaca,...regsNome].map(r=>r.id)).size;
+    if(total>0) continue;
+
+    let motivo;
+    if(!placasVinculadas.length && !condutoresExatos.length){
+      motivo='Sem nenhum vínculo: nenhuma moto vinculada a essa matrícula em Locação de Motos, e o nome não bate com o condutor de nenhum veículo cadastrado no módulo KM.';
+    } else {
+      const partes=[];
+      if(placasVinculadas.length) partes.push(`moto vinculada (${placasVinculadas.join(', ')}) sem nenhuma viagem registrada nesse mês`);
+      if(condutoresExatos.length) partes.push(`nome bate com condutor de (${condutoresExatos.join(' / ')}), mas também sem viagem registrada nesse mês`);
+      motivo=partes.join(' -- ')+'. Provavelmente essa moto não subiu relatório de KM nesse mês, ou a pessoa não andou de moto nesse período.';
+    }
+    linhas.push({matricula:m.matricula,nome:m.nome_leiturista,motivo});
+  }
+
+  if(!linhas.length){
+    painel.innerHTML='<b style="color:#1a4a1a">Todos os motociclistas com leitura nesse mês têm KM encontrado. Nenhum problema pra listar.</b>';
+    return;
+  }
+  painel.innerHTML=`<b>${linhas.length} motociclista(s) com leitura em ${mes} mas sem KM encontrado:</b><table style="width:100%;margin-top:8px;border-collapse:collapse">
+    ${linhas.map(l=>`<tr style="border-top:1px solid #e0eee0"><td style="padding:4px 8px;white-space:nowrap;font-weight:600">${l.matricula}</td><td style="padding:4px 8px;white-space:nowrap">${l.nome}</td><td style="padding:4px 8px;color:#555">${l.motivo}</td></tr>`).join('')}
+  </table>`;
 }
 
 let nomesPorMatricula={};
