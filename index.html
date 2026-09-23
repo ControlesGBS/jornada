@@ -1483,9 +1483,24 @@ async function diagnosticoKmPublico(){
   }
 
   const vs=await carregarVeiculos();
+
+  // Busca as exclusões de odômetro primeiro -- quem já aparece aqui explica o zero KM
+  // sozinho, não entra também na lista de "sem km" (senão vira o mesmo problema 2x).
+  const {data:exc}=await sb.from('registros_km_exclusoes').select('placa,motivo')
+    .eq('mes_ref',mesRef).eq('tipo','veiculo_invalidado');
+  const comProblema=(exc||[]).map(e=>{
+    const vPlaca=vs.find(v=>v.placa===e.placa);
+    let m=null;
+    if(vPlaca&&vPlaca.matricula) m=motociclistas.find(mm=>mm.matricula===vPlaca.matricula);
+    if(!m&&vPlaca&&vPlaca.condutor){ const nn=normNome(vPlaca.condutor); m=motociclistas.find(mm=>normNome(mm.nome_leiturista)===nn); }
+    return {matricula:m?m.matricula:'—',nome:m?m.nome_leiturista:(vPlaca?.condutor||'—'),placa:e.placa,motivo:e.motivo};
+  });
+  const matriculasComProblema=new Set(comProblema.map(c=>c.matricula).filter(mat=>mat!=='—'));
+
   const semKm=[];
   for(const m of motociclistas){
     if(!comLeitura.has(m.matricula)) continue;
+    if(matriculasComProblema.has(m.matricula)) continue;
     const placasVinculadas=vs.filter(v=>v.matricula===m.matricula).map(v=>v.placa);
     const nomeNorm=normNome(m.nome_leiturista);
     const condutoresExatos=[...new Set(vs.filter(v=>normNome(v.condutor)===nomeNorm).map(v=>v.condutor))];
@@ -1496,16 +1511,6 @@ async function diagnosticoKmPublico(){
     const total=new Set([...regsPlaca,...regsNome].map(r=>r.id)).size;
     if(total===0) semKm.push({matricula:m.matricula,nome:m.nome_leiturista});
   }
-
-  const {data:exc}=await sb.from('registros_km_exclusoes').select('placa,motivo')
-    .eq('mes_ref',mesRef).eq('tipo','veiculo_invalidado');
-  const comProblema=(exc||[]).map(e=>{
-    const vPlaca=vs.find(v=>v.placa===e.placa);
-    let m=null;
-    if(vPlaca&&vPlaca.matricula) m=motociclistas.find(mm=>mm.matricula===vPlaca.matricula);
-    if(!m&&vPlaca&&vPlaca.condutor){ const nn=normNome(vPlaca.condutor); m=motociclistas.find(mm=>normNome(mm.nome_leiturista)===nn); }
-    return {matricula:m?m.matricula:'—',nome:m?m.nome_leiturista:(vPlaca?.condutor||'—'),placa:e.placa,motivo:e.motivo};
-  });
 
   if(!semKm.length && !comProblema.length){
     painel.innerHTML='<b style="color:#1a4a1a">Nenhum problema encontrado nesse mês.</b>';
