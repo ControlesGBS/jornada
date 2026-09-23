@@ -1819,7 +1819,9 @@ function renderTabela(){
 
   document.getElementById('tbody').innerHTML=rows.join('');
 
-  const avisoSemKmHtml=(ehMotociclista&&diasSemKm>0)
+  // Só avisa quando não tem NENHUM km no mês inteiro -- se já registrou km em algum dia,
+  // um dia isolado sem KM não é motivo de alerta (mesmo critério do KM Diagnóstico).
+  const avisoSemKmHtml=(ehMotociclista&&diasSemKm>0&&kmMesEfetivo===0)
     ?`⚠ <b>${diasSemKm}</b> dia(s) trabalhado(s) sem KM registrado nesse mês, verificar!`
     :'';
   const elAviso=document.getElementById('aviso-km-exclusao');
