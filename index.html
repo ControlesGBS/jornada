@@ -1577,14 +1577,12 @@ function renderTabela(){
 
     if(!grupo){
       const corDia=fds?'color:#dc2626;font-weight:500':'';
-      // Sem grupo = zero leituras nesse dia; em fim de semana sem leitura, KM não entra no relatório.
-      const kmDia0=fds?null:kmPorDia[key];
-      if(kmDia0) kmMesEfetivo+=kmDia0;
+      // Sem grupo = sem leitura registrada nesse dia = sem horas trabalhadas -> KM não entra no relatório.
       rows.push(`<tr class="sem-trab">
         <td>${mat}</td><td>—</td><td>${d}</td>
         <td style="font-size:11px;${corDia}">${SEMANAS[sem]}</td>
         <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-        <td class="td-km">${kmDia0?kmDia0.toLocaleString('pt-BR',{maximumFractionDigits:1}):''}</td></tr>`);
+        <td class="td-km"></td></tr>`);
       continue;
     }
 
@@ -1648,11 +1646,12 @@ function renderTabela(){
 
     const corDia2=fds?'color:#dc2626;font-weight:500':'';
     const pouco=totalLeitDia<10;
-    // Fim de semana sem leitura: KM não entra no relatório, nem é considerado problema (dia sem expectativa de trabalho).
-    const suprimidoFDS=fds&&totalLeitDia===0;
-    const kmDia=suprimidoFDS?null:kmPorDia[key];
+    // KM só entra no relatório em dia com leitura válida (horas trabalhadas > 30min) --
+    // vale igual pra semana e fim de semana, pra não contar km de uso pessoal da moto.
+    const temLeituraValida=trab>30;
+    const kmDia=temLeituraValida?kmPorDia[key]:null;
     if(kmDia) kmMesEfetivo+=kmDia;
-    else if(!suprimidoFDS) diasSemKm++;
+    else if(temLeituraValida) diasSemKm++;
     rows.push(`<tr class="${pouco?'sem-trab':''}">
       <td>${mat}</td>
       <td>${rzStr||'—'}</td>
@@ -1677,9 +1676,8 @@ function renderTabela(){
   for(let d=1;d<=diasMes;d++){
     const key=`${aa}-${mm}-${String(d).padStart(2,'0')}`;
     const sem=(diaSem0+d-1)%7;
-    const fds=sem===0||sem===6;
     const grupo=porData[key];
-    if(!grupo){ linhasExportJornada.push({'Mat.':mat,'RZ':'—','Dia':d,'Sem.':SEMANAS[sem],'H. inicial':'','H. final':'','Intervalo':'','H. trab.':'','Leituras':0,'Imp. GBS':'','Imp. CEMIG':'','Total imp.':'','Tipo rota':'','Intervalos ≥30min':'',...(ehMotociclista?{'KM Rodada':(fds?null:kmPorDia[key])||''}:{})}); continue; }
+    if(!grupo){ linhasExportJornada.push({'Mat.':mat,'RZ':'—','Dia':d,'Sem.':SEMANAS[sem],'H. inicial':'','H. final':'','Intervalo':'','H. trab.':'','Leituras':0,'Imp. GBS':'','Imp. CEMIG':'','Total imp.':'','Tipo rota':'','Intervalos ≥30min':'',...(ehMotociclista?{'KM Rodada':''}:{})}); continue; }
     let todasHoras=[],totalLeitDia=0,todasRotas=[],todosRzs=[];
     grupo.linhas.forEach(ln=>{
       const h=JSON.parse(ln.horas_json||'[]');
@@ -1717,7 +1715,7 @@ function renderTabela(){
       'Total imp.':(impGbs+impCemig)||'',
       'Tipo rota':tipoStr,
       'Intervalos ≥30min':qtdIntervalos30||'',
-      ...(ehMotociclista?{'KM Rodada':((fds&&totalLeitDia===0)?null:kmPorDia[key])||''}:{})
+      ...(ehMotociclista?{'KM Rodada':(trab>30?kmPorDia[key]:null)||''}:{})
     });
   }
 
