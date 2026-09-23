@@ -25,7 +25,7 @@ body{font-family:system-ui,sans-serif;background:#f4f6f4;color:#1a2a1a;font-size
 .slicer-box label{color:#4a7a4a;font-size:17px;white-space:nowrap;margin:0;font-weight:500}
 .slicer-box span{color:#1a4a1a;font-size:13px;font-weight:500;min-width:40px}
 .slicer-box input[type=range]{height:20px;width:80px;accent-color:#2d7a2d}
-.kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:10px}
+.kpis{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px;margin-bottom:10px}
 .kpi{background:#fff;border:0.5px solid #c0dcc0;border-radius:8px;padding:10px 14px;text-align:center}
 .kpi-label{font-size:10px;color:#4a7a4a;text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px}
 .kpi-value{font-size:22px;font-weight:500;color:#1a4a1a}
@@ -171,6 +171,15 @@ td.rota-col{text-align:left;font-size:14px}
                oninput="document.getElementById('sv').textContent=this.value+' min';renderTabela()">
         <span id="sv">10 min</span>
       </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+      <div onclick="toggleInfoPainel()" style="cursor:pointer;font-size:11px;color:#2d7a2d;font-weight:600;display:flex;align-items:center;gap:4px;user-select:none">
+        <span id="info-painel-seta" style="transition:transform .15s">▸</span> Informações — toque para ver
+      </div>
+    </div>
+    <div id="info-painel" style="display:none;background:#f4f8f4;border:1px solid #c0dcc0;border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px;color:#2b4a2b;line-height:1.6">
+      Selecione <b>Só motociclistas</b> pra ver a lista com a <b>KM Rodada</b> por dia numa coluna nova. Só conta KM em dias com mais de 30 min trabalhados fazendo leitura — dias sem leitura não entram na conta de KM total, mesmo sendo dia útil.<br>
+      A quantidade de <b>dias trabalhados</b>, <b>média de horas</b> e os demais indicadores acima — pra todos os leituristas, inclusive os que não são motociclistas — também só contam dias com mais de 30 minutos trabalhados.
     </div>
     <div class="kpis" id="kpis">
       <div class="kpi"><div class="kpi-label">Dias trabalhados</div><div class="kpi-value">—</div></div>
@@ -488,6 +497,14 @@ let dadosMes = [];
 let localMap = {};
 let kmPorDia = {};
 let ehMotociclista = false;
+
+function toggleInfoPainel(){
+  const el=document.getElementById('info-painel');
+  const seta=document.getElementById('info-painel-seta');
+  const aberto=el.style.display==='block';
+  el.style.display=aberto?'none':'block';
+  seta.style.transform=aberto?'':'rotate(90deg)';
+}
 
 function irPara(id,btn){
   if(id==='admin'){
@@ -1619,8 +1636,9 @@ function renderTabela(){
     const impGbsDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_gbs||0),0);
     const impCemigDia=grupo.linhas.reduce((a,ln)=>a+(ln.imp_cemig||0),0);
     const totalImpDia=impGbsDia+impCemigDia;
-    // Mínimo 10 leituras para contar como dia trabalhado
-    if(totalLeitDia>=10){
+    // Dia trabalhado = mais de 30 minutos trabalhados (não mais por quantidade de leituras).
+    const temLeituraValida=trab>30;
+    if(temLeituraValida){
       totalLeit+=totalLeitDia;
       totalTrabMin+=trab;
       somaIni+=toMin(hi);
@@ -1645,10 +1663,9 @@ function renderTabela(){
       .join(' ');
 
     const corDia2=fds?'color:#dc2626;font-weight:500':'';
-    const pouco=totalLeitDia<10;
+    const pouco=!temLeituraValida;
     // KM só entra no relatório em dia com leitura válida (horas trabalhadas > 30min) --
     // vale igual pra semana e fim de semana, pra não contar km de uso pessoal da moto.
-    const temLeituraValida=trab>30;
     const kmDia=temLeituraValida?kmPorDia[key]:null;
     if(kmDia) kmMesEfetivo+=kmDia;
     else if(temLeituraValida) diasSemKm++;
