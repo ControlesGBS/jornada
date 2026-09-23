@@ -1594,12 +1594,14 @@ function renderTabela(){
 
     if(!grupo){
       const corDia=fds?'color:#dc2626;font-weight:500':'';
-      // Sem grupo = sem leitura registrada nesse dia = sem horas trabalhadas -> KM não entra no relatório.
+      // Sem grupo = sem leitura registrada nesse dia -> KM não entra na conta, mas se tiver
+      // KM registrado mesmo assim, mostra apagado (só pra referência, não some do relatório).
+      const kmDia0=kmPorDia[key];
       rows.push(`<tr class="sem-trab">
         <td>${mat}</td><td>—</td><td>${d}</td>
         <td style="font-size:11px;${corDia}">${SEMANAS[sem]}</td>
         <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-        <td class="td-km"></td></tr>`);
+        <td class="td-km">${kmDia0?`<span style="color:#bbb">${kmDia0.toLocaleString('pt-BR',{maximumFractionDigits:1})}</span>`:''}</td></tr>`);
       continue;
     }
 
@@ -1664,9 +1666,11 @@ function renderTabela(){
 
     const corDia2=fds?'color:#dc2626;font-weight:500':'';
     const pouco=!temLeituraValida;
-    // KM só entra no relatório em dia com leitura válida (horas trabalhadas > 30min) --
+    // KM só entra na conta em dia com leitura válida (horas trabalhadas > 30min) --
     // vale igual pra semana e fim de semana, pra não contar km de uso pessoal da moto.
-    const kmDia=temLeituraValida?kmPorDia[key]:null;
+    // Sem leitura válida mas com KM registrado: mostra apagado, só de referência.
+    const kmDiaBruto=kmPorDia[key];
+    const kmDia=temLeituraValida?kmDiaBruto:null;
     if(kmDia) kmMesEfetivo+=kmDia;
     else if(temLeituraValida) diasSemKm++;
     rows.push(`<tr class="${pouco?'sem-trab':''}">
@@ -1684,7 +1688,7 @@ function renderTabela(){
       <td>${totalImpDia||'—'}</td>
       <td class="rota-col">${badges}</td>
       <td>${qtdIntervalos30||'—'}</td>
-      <td class="td-km">${kmDia?kmDia.toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}</td>
+      <td class="td-km">${kmDia?kmDia.toLocaleString('pt-BR',{maximumFractionDigits:1}):(kmDiaBruto?`<span style="color:#bbb">${kmDiaBruto.toLocaleString('pt-BR',{maximumFractionDigits:1})}</span>`:'—')}</td>
     </tr>`);
   }
 
