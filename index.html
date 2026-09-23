@@ -1328,19 +1328,15 @@ async function buscarRegistrosKmPor(filtro,di,df){
   return regs;
 }
 
-function renderAvisoKmExclusao(exc,condutorPorPlaca){
-  const el=document.getElementById('aviso-km-exclusao');
-  if(!exc||!exc.length){ el.style.display='none'; el.innerHTML=''; return; }
-  el.innerHTML=exc.map(e=>
-    `🚫 A moto <b>${e.placa}</b>${condutorPorPlaca[e.placa]?' — '+condutorPorPlaca[e.placa]:''} foi removida do relatório de KM desse mês por odômetro não confiável: ${e.motivo}. Nenhum KM desse veículo entra no total.`
-  ).join('<br>');
-  el.style.display='block';
-}
+// avisoExclusaoHtml guarda só o pedaço de aviso de veículo invalidado por odômetro;
+// renderTabela() junta com o aviso de "dia trabalhado sem KM" (que só dá pra calcular
+// lá, cruzando com dadosMes) e escreve os dois juntos na mesma caixa vermelha.
+let avisoExclusaoHtml='';
 
 async function carregarKmRodado(mat,nome,funcao,di,df){
   kmPorDia={};
   ehMotociclista=ehFuncaoMoto(funcao);
-  renderAvisoKmExclusao(null);
+  avisoExclusaoHtml='';
   if(!mat||!ehMotociclista) return;
   const vs=await carregarVeiculos();
   // Junta os dois vínculos possíveis: placa vinculada oficialmente (Locação de Motos >
@@ -1359,7 +1355,9 @@ async function carregarKmRodado(mat,nome,funcao,di,df){
     if(exc&&exc.length){
       const condutorPorPlaca={};
       vs.forEach(v=>condutorPorPlaca[v.placa]=v.condutor);
-      renderAvisoKmExclusao(exc,condutorPorPlaca);
+      avisoExclusaoHtml=exc.map(e=>
+        `🚫 A moto <b>${e.placa}</b>${condutorPorPlaca[e.placa]?' — '+condutorPorPlaca[e.placa]:''} foi removida do relatório de KM desse mês por odômetro não confiável: ${e.motivo}. Nenhum KM desse veículo entra no total.`
+      ).join('<br>');
     }
   }
 
@@ -1483,7 +1481,7 @@ async function carregarMatriculas(){
 async function carregarDados(){
   const mat=document.getElementById('f-mat').value;
   const mes=document.getElementById('f-mes').value;
-  if(!mat||!mes){ dadosMes=[]; kmPorDia={}; ehMotociclista=false; renderAvisoKmExclusao(null); renderTabela(); return; }
+  if(!mat||!mes){ dadosMes=[]; kmPorDia={}; ehMotociclista=false; avisoExclusaoHtml=''; document.getElementById('aviso-km-exclusao').style.display='none'; renderTabela(); return; }
 
   const [mm,aa]=mes.split('/');
   const di=`${aa}-${mm}-01`;
@@ -1568,7 +1566,7 @@ function renderTabela(){
     porData[d].linhas.push(r);
   });
 
-  let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0,totalImpGbs=0,kmMesEfetivo=0;
+  let totalLeit=0,totalTrabMin=0,somaIni=0,diasTrab=0,totalImpGbs=0,kmMesEfetivo=0,diasSemKm=0;
   const rows=[];
 
   for(let d=1;d<=diasMes;d++){
@@ -1654,6 +1652,7 @@ function renderTabela(){
     const suprimidoFDS=fds&&totalLeitDia===0;
     const kmDia=suprimidoFDS?null:kmPorDia[key];
     if(kmDia) kmMesEfetivo+=kmDia;
+    else if(!suprimidoFDS) diasSemKm++;
     rows.push(`<tr class="${pouco?'sem-trab':''}">
       <td>${mat}</td>
       <td>${rzStr||'—'}</td>
@@ -1669,7 +1668,7 @@ function renderTabela(){
       <td>${totalImpDia||'—'}</td>
       <td class="rota-col">${badges}</td>
       <td>${qtdIntervalos30||'—'}</td>
-      <td class="td-km">${kmDia?kmDia.toLocaleString('pt-BR',{maximumFractionDigits:1}):(suprimidoFDS?'—':'<span style="color:#c62828;font-weight:600">Sem KM registrado, verificar!</span>')}</td>
+      <td class="td-km">${kmDia?kmDia.toLocaleString('pt-BR',{maximumFractionDigits:1}):'—'}</td>
     </tr>`);
   }
 
@@ -1723,6 +1722,14 @@ function renderTabela(){
   }
 
   document.getElementById('tbody').innerHTML=rows.join('');
+
+  const avisoSemKmHtml=(ehMotociclista&&diasSemKm>0)
+    ?`⚠ <b>${diasSemKm}</b> dia(s) trabalhado(s) sem KM registrado nesse mês, verificar!`
+    :'';
+  const elAviso=document.getElementById('aviso-km-exclusao');
+  const partesAviso=[avisoExclusaoHtml,avisoSemKmHtml].filter(Boolean);
+  if(partesAviso.length){ elAviso.innerHTML=partesAviso.join('<br>'); elAviso.style.display='block'; }
+  else { elAviso.innerHTML=''; elAviso.style.display='none'; }
 
   const mi=diasTrab>0?Math.round(somaIni/diasTrab):0;
   const mt=diasTrab>0?Math.round(totalTrabMin/diasTrab):0;
