@@ -35,3 +35,16 @@ create table if not exists local_base (
 alter table jornada    disable row level security;
 alter table matriculas disable row level security;
 alter table local_base disable row level security;
+
+-- ============================================================
+-- MIGRAÇÃO: trava única de jornada precisa incluir o RZ.
+-- Rodar uma vez no SQL Editor do Supabase da GBS (projeto ndwivbhqglpnfyqwjbzu).
+-- O upload é 1 arquivo por RZ, e um leiturista pode trabalhar em mais de um RZ no
+-- mesmo dia (arquivos separados). Com a trava só em (matricula,data), o upsert do
+-- segundo RZ sobrescrevia inteiro a linha que o primeiro já tinha gravado pra aquele
+-- dia -- o Painel mostrava só os horários da última RZ processada, como se o
+-- leiturista tivesse começado mais tarde do que realmente começou. Com RZ na trava,
+-- cada RZ vira sua própria linha (reprocessar a mesma RZ continua seguro, substitui só
+-- ela mesma); a tela já soma todas as linhas do dia (ver renderTabela em index.html).
+alter table jornada drop constraint if exists jornada_matricula_data_key;
+alter table jornada add constraint jornada_matricula_data_rz_key unique (matricula, data, rz);
