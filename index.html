@@ -546,6 +546,23 @@ function selecionarAcert(inp){
   document.getElementById('btn-acert').disabled = false;
 }
 
+// Relatório "Lista de leituras Acertadas Manualmente": mesma mudança do relatório de
+// Sequência da CEMIG (1ª coluna "Instalação" -> "Unidade Consumidora"). A posição de cada
+// coluna sai do cabeçalho; sem cabeçalho, usa o layout antigo. O "OC" aparece duas vezes
+// (a 1ª é a ocorrência original, a última é a acertada).
+function mapearColunasAcertadas(rowCab){
+  const col={uc:1,reg:6,ocOrig:14,ocAcert:22};
+  const ocs=[];
+  (rowCab||[]).forEach((cel,ci)=>{
+    const k=normCabCemig(cel);
+    if(k==='instalacao'||k==='unidade consumidora') col.uc=ci;
+    else if(k==='reg.'||k==='reg'||k==='t. reg') col.reg=ci;
+    else if(k==='oc') ocs.push(ci);
+  });
+  if(ocs.length>=2){ col.ocOrig=ocs[0]; col.ocAcert=ocs[ocs.length-1]; }
+  return col;
+}
+
 async function processarAcert(){
   if(!fileAcert) return;
   const prog = document.getElementById('prog-acert');
@@ -554,8 +571,8 @@ async function processarAcert(){
   try {
     const buf = await fileAcert.arrayBuffer();
     const wb  = XLSX.read(buf, {type:'array', raw:false});
-    const ws  = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:false});
+    // lê TODAS as abas (o .xls vem com uma aba por página), não só a primeira
+    const rows = wb.SheetNames.flatMap(n=>XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, defval:null, raw:false}));
 
     // Extrair mês/ano do cabeçalho
     let mesRefDb = null; // formato aaaa-mm (usado em leituras_acertadas)
@@ -579,16 +596,23 @@ async function processarAcert(){
 
     // Extrair registros
     let ulAtual = null;
+    let col = mapearColunasAcertadas(null);
+    let linhasLidas = 0;
     const registros = [];
     for(const row of rows){
-      const v1 = row[1] != null ? String(row[1]).trim() : '';
-      if(v1.startsWith('Unidade de Leitura:')){
-        const m = v1.match(/Unidade de Leitura: (\d+)/);
+      if(row.some(c=>c!=null&&ehCabecalhoUC(String(c)))){ col = mapearColunasAcertadas(row); continue; }
+      const celUL = row.find(c=>c!=null&&String(c).trim().startsWith('Unidade de Leitura:'));
+      if(celUL!=null){
+        const m = String(celUL).trim().match(/Unidade de Leitura: (\d+)/);
         if(m) ulAtual = m[1];
-      } else if(/^\d{10}$/.test(v1)){
-        const ocOrig   = row[14] != null ? parseInt(String(row[14]).trim())||0 : 0;
-        const ocAcert  = row[22] != null ? parseInt(String(row[22]).trim())||0 : 0;
-        const reg      = row[6]  != null ? String(row[6]).trim() : null;
+        continue;
+      }
+      const v1 = row[col.uc] != null ? String(row[col.uc]).trim() : '';
+      if(ehUCCemig(v1)){
+        linhasLidas++;
+        const ocOrig   = row[col.ocOrig]  != null ? parseInt(String(row[col.ocOrig]).trim())||0 : 0;
+        const ocAcert  = row[col.ocAcert] != null ? parseInt(String(row[col.ocAcert]).trim())||0 : 0;
+        const reg      = row[col.reg]     != null ? String(row[col.reg]).trim() : null;
         if(ocOrig > 1999 && ocAcert <= 1999){
           registros.push({
             instalacao: v1, reg: reg, ul: ulAtual,
@@ -597,8 +621,11 @@ async function processarAcert(){
         }
       }
     }
+    // Sem nenhuma linha reconhecida = arquivo vazio ou formato novo não reconhecido. Não pode
+    // seguir: logo abaixo apaga TODAS as acertadas do mês antes de inserir, e apagaria à toa.
+    if(!linhasLidas) throw new Error('Nenhuma leitura reconhecida no arquivo (vazio ou formato do relatório mudou). Nada foi alterado no banco.');
 
-    prog.textContent = `${registros.length} leituras acertadas. Substituindo...`;
+    prog.textContent = `${registros.length} leituras acertadas (de ${linhasLidas} linhas lidas). Substituindo...`;
 
     await sb.from('leituras_acertadas').delete().eq('mes_ref', mesRefDb);
     if(registros.length){
