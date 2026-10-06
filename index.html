@@ -1856,7 +1856,10 @@ let fileCemig=null,fileMat=null,fileLocal=null;
 // formas aparecem misturadas no mesmo arquivo, e as colunas seguintes mudaram de posição
 // (Medidor 3->5, OC 12->13, Hora 17->19...). Por isso o título da 1ª coluna aceita os dois
 // nomes, o valor aceita os dois formatos, e a posição de cada coluna sai do cabeçalho.
-const REGEX_UC_CEMIG=/^(\d{10}|\d{1,3}(\.\d{3})+-\d{1,2})$/;
+const REGEX_UC_CEMIG=/^(\d+|\d{1,3}(\.\d{3})+-\d{1,2})$/;
+// aceita de 10 a 16 dígitos (só números, ou com pontos e traço) -- a CEMIG ainda está
+// aumentando o tamanho da numeração, então deixa folga em vez de travar no máximo atual (13)
+function ehUCCemig(v){ if(!REGEX_UC_CEMIG.test(v)) return false; const n=v.replace(/\D/g,'').length; return n>=10&&n<=16; }
 function normCabCemig(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase(); }
 function ehCabecalhoUC(v0){ const n=normCabCemig(v0); return n==='instalacao'||n==='unidade consumidora'; }
 function mapearColunasCemig(rowCab,rowSeg){
@@ -1919,7 +1922,7 @@ async function processarCemig(fileOverride){
         } else if(ehCabecalhoUC(v0)){
           emDados=true;
           col=mapearColunasCemig(row,rows[ri+1]);
-        } else if(emDados&&REGEX_UC_CEMIG.test(v0)){
+        } else if(emDados&&ehUCCemig(v0)){
           const dh=row[col.data]!=null?String(row[col.data]).trim():null;
           const hora=row[col.hora]!=null?String(row[col.hora]).trim():null;
           const oc=row[col.oc]!=null?parseInt(String(row[col.oc]).trim())||0:0;
@@ -1959,7 +1962,7 @@ async function processarCemig(fileOverride){
             ultimoImpedimento=grupos[chave].impedimentos[grupos[chave].impedimentos.length-1];
           }
           ultimaInstalacao=v0;
-        } else if(emDados && ultimoImpedimento && v0 && !REGEX_UC_CEMIG.test(v0)){
+        } else if(emDados && ultimoImpedimento && v0 && !ehUCCemig(v0)){
           // Linha par: endereço do cliente
           const end=row[col.end]!=null?String(row[col.end]).trim():'';
           if(end && ultimoImpedimento.endereco==='') ultimoImpedimento.endereco=end;
