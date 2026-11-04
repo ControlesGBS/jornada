@@ -2315,11 +2315,28 @@ async function carregarRanking(){
   const rank=Object.entries(acum).sort((a,b)=>b[1]-a[1]);
   if(!rank.length){barsEl.innerHTML='<div class="status-msg">Nenhum dado no período.</div>';return;}
   const maxVal=rank[0][1];
+  // Quebra por tipo (Urbano 1-79 / Localidade 80-88 / Rural 89-99), gravada na jornada
+  // no upload (leituras_urbano / leituras_povoado = localidade / leituras_rural).
+  const quebra={};
+  for(let k=0;k<matsIds.length;k+=200){
+    const ids=matsIds.slice(k,k+200); let f=0;
+    while(true){
+      const {data:lote}=await sb.from('jornada').select('matricula,leituras_urbano,leituras_povoado,leituras_rural')
+        .in('matricula',ids).eq('mes_ref',mesRef).range(f,f+999);
+      if(!lote||!lote.length) break;
+      lote.forEach(r=>{
+        const q=quebra[r.matricula]||(quebra[r.matricula]={u:0,l:0,r:0});
+        q.u+=r.leituras_urbano||0; q.l+=r.leituras_povoado||0; q.r+=r.leituras_rural||0;
+      });
+      if(lote.length<1000) break;
+      f+=1000;
+    }
+  }
   barsEl.innerHTML=rank.map(([mat,total],i)=>{
     const info=matMap[mat]||{nome:mat};
     const pct=(total/maxVal*100).toFixed(1);
-    const tooltip=`${info.nome||mat} — ${info.base||'Sem base'}`;
-    return `<div class="bar-row" title="${tooltip}">
+    const q=quebra[mat]||{u:0,l:0,r:0};
+    return `<div class="bar-row" data-nome="${String(info.nome||mat).replace(/"/g,'&quot;')}" data-base="${String(info.base||'Sem base').replace(/"/g,'&quot;')}" data-total="${total}" data-u="${q.u}" data-l="${q.l}" data-r="${q.r}">
       <div class="bar-rank">${i+1}</div>
       <div class="bar-name">${mat} — ${info.nome||mat}</div>
       <div class="bar-track">
@@ -2330,6 +2347,44 @@ async function carregarRanking(){
     </div>`;
   }).join('');
 }
+
+// Balão ao passar o mouse na barra do ranking: total + urbano / localidade / rural
+(function(){
+  let tip=null;
+  const fmt=n=>Number(n).toLocaleString('pt-BR');
+  function mostrar(row,e){
+    if(!tip){
+      tip=document.createElement('div');
+      tip.style.cssText='position:fixed;z-index:9999;pointer-events:none;background:#1a2a1a;color:#fff;padding:10px 12px;border-radius:8px;font-size:12.5px;line-height:1.55;box-shadow:0 4px 14px rgba(0,0,0,.25);max-width:280px';
+      document.body.appendChild(tip);
+    }
+    const d=row.dataset, u=+d.u, l=+d.l, r=+d.r, total=+d.total, soma=u+l+r;
+    const p=n=>total?` <span style="opacity:.65">(${(n/total*100).toFixed(0)}%)</span>`:'';
+    let corpo;
+    if(!soma){
+      corpo='<div style="opacity:.8;margin-top:4px">Sem detalhamento por tipo neste mês (a jornada foi importada antes dessa informação existir).</div>';
+    }else{
+      corpo=`<div style="margin-top:4px">Urbano (1–79): <b>${fmt(u)}</b>${p(u)}</div>
+        <div>Localidade (80–88): <b>${fmt(l)}</b>${p(l)}</div>
+        <div>Rural (89–99): <b>${fmt(r)}</b>${p(r)}</div>`
+        +(soma!==total?`<div style="opacity:.65;margin-top:4px;font-size:11.5px">Soma por tipo: ${fmt(soma)} (o total acima vem do arquivo da Cemig)</div>`:'');
+    }
+    tip.innerHTML=`<div style="font-weight:600">${d.nome}</div><div style="opacity:.7;font-size:11.5px">${d.base}</div>
+      <div style="margin-top:6px;border-top:1px solid rgba(255,255,255,.2);padding-top:6px">Total: <b>${fmt(total)}</b> leituras</div>${corpo}`;
+    tip.style.display='block';
+    const w=tip.offsetWidth,h=tip.offsetHeight;
+    let x=e.clientX+16,y=e.clientY+16;
+    if(x+w>innerWidth-8) x=e.clientX-w-16;
+    if(y+h>innerHeight-8) y=e.clientY-h-16;
+    tip.style.left=Math.max(8,x)+'px'; tip.style.top=Math.max(8,y)+'px';
+  }
+  function esconder(){ if(tip) tip.style.display='none'; }
+  document.addEventListener('mousemove',e=>{
+    const row=e.target.closest&&e.target.closest('#rk-bars .bar-row');
+    if(row&&row.dataset.total!==undefined) mostrar(row,e); else esconder();
+  });
+  document.addEventListener('scroll',esconder,true);
+})();
 
 // ── ALERTA DE INÍCIO ──────────────────────────────────────────────
 async function carregarAlertaInicio(){
