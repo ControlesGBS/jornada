@@ -231,6 +231,7 @@ td.rota-col{text-align:left;font-size:14px}
     <div class="filtros">
       <div><label>Mês/Ano</label><select id="rk-mes" onchange="carregarRanking()"></select></div>
       <div><label>Base</label><select id="rk-base" onchange="carregarRanking()"><option value="">Todas as bases</option></select></div>
+      <div><label>Tipo Rota</label><select id="rk-tipo" onchange="carregarRanking()"><option value="">Todos</option><option value="urbano">Urbano (1–79)</option><option value="localidade">Localidade (80–88)</option><option value="rural">Rural (89–99)</option><option value="misto">Misto</option></select></div>
     </div>
     <div class="rank-card-hdr" style="border-radius:8px 8px 0 0;margin:0 0 0 0"><span>☰ Ranking de leituras — todos os leituristas</span></div>
   </div>
@@ -2312,9 +2313,8 @@ async function carregarRanking(){
     }
     jornada.forEach(row=>{acum[row.matricula]=(acum[row.matricula]||0)+(row.qtd_leituras||0);});
   }
-  const rank=Object.entries(acum).sort((a,b)=>b[1]-a[1]);
+  let rank=Object.entries(acum).sort((a,b)=>b[1]-a[1]);
   if(!rank.length){barsEl.innerHTML='<div class="status-msg">Nenhum dado no período.</div>';return;}
-  const maxVal=rank[0][1];
   // Quebra por tipo (Urbano 1-79 / Localidade 80-88 / Rural 89-99), gravada na jornada
   // no upload (leituras_urbano / leituras_povoado = localidade / leituras_rural).
   const quebra={};
@@ -2332,6 +2332,21 @@ async function carregarRanking(){
       f+=1000;
     }
   }
+  // Filtro Tipo Rota: urbano = só 1-79 · localidade = só 80-88 · rural = só 89-99 ·
+  // misto = rodou em 2 ou mais tipos no mês. Quem não tem a quebra gravada (jornada antiga)
+  // não dá pra classificar, então sai quando há filtro.
+  const tipoRk=(document.getElementById('rk-tipo')||{}).value||'';
+  if(tipoRk){
+    const tipoDe=q=>{
+      const t=(q.u>0)+(q.l>0)+(q.r>0);
+      if(t===0) return null;
+      if(t>1) return 'misto';
+      return q.u>0?'urbano':q.l>0?'localidade':'rural';
+    };
+    rank=rank.filter(([mat])=>tipoDe(quebra[mat]||{u:0,l:0,r:0})===tipoRk);
+    if(!rank.length){barsEl.innerHTML='<div class="status-msg">Nenhum leiturista desse tipo de rota no período.</div>';return;}
+  }
+  const maxVal=rank[0][1];
   barsEl.innerHTML=rank.map(([mat,total],i)=>{
     const info=matMap[mat]||{nome:mat};
     const pct=(total/maxVal*100).toFixed(1);
