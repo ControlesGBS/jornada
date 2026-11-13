@@ -556,7 +556,7 @@ function mapearColunasAcertadas(rowCab){
   const ocs=[];
   (rowCab||[]).forEach((cel,ci)=>{
     const k=normCabCemig(cel);
-    if(k==='instalacao'||k==='unidade consumidora') col.uc=ci;
+    if(ehNomeColUC(k)) col.uc=ci;
     else if(k==='reg.'||k==='reg'||k==='t. reg') col.reg=ci;
     else if(k==='oc') ocs.push(ci);
   });
@@ -598,10 +598,10 @@ async function processarAcert(){
     // Extrair registros
     let ulAtual = null;
     let col = mapearColunasAcertadas(null);
-    let linhasLidas = 0;
+    let linhasLidas = 0, cabecalhos = 0;
     const registros = [];
     for(const row of rows){
-      if(row.some(c=>c!=null&&ehCabecalhoUC(String(c)))){ col = mapearColunasAcertadas(row); continue; }
+      if(row.some(c=>c!=null&&ehCabecalhoUC(String(c)))){ col = mapearColunasAcertadas(row); cabecalhos++; continue; }
       const celUL = row.find(c=>c!=null&&String(c).trim().startsWith('Unidade de Leitura:'));
       if(celUL!=null){
         const m = String(celUL).trim().match(/Unidade de Leitura: (\d+)/);
@@ -625,6 +625,9 @@ async function processarAcert(){
     // Sem nenhuma linha reconhecida = arquivo vazio ou formato novo não reconhecido. Não pode
     // seguir: logo abaixo apaga TODAS as acertadas do mês antes de inserir, e apagaria à toa.
     if(!linhasLidas) throw new Error('Nenhuma leitura reconhecida no arquivo (vazio ou formato do relatório mudou). Nada foi alterado no banco.');
+    // Linhas de dados sem NENHUM cabeçalho de colunas reconhecido = o layout mudou e as colunas (OC original/acertada)
+    // seriam chutadas pelo layout antigo, gravando lixo. Melhor parar.
+    if(!cabecalhos) throw new Error('Cabeçalho das colunas do relatório não reconhecido (o layout mudou). Nada foi alterado no banco.');
 
     prog.textContent = `${registros.length} leituras acertadas (de ${linhasLidas} linhas lidas). Substituindo...`;
 
@@ -1889,7 +1892,8 @@ const REGEX_UC_CEMIG=/^(\d+|\d{1,3}(\.\d{3})+-\d{1,2})$/;
 // aumentando o tamanho da numeração, então deixa folga em vez de travar no máximo atual (13)
 function ehUCCemig(v){ if(!REGEX_UC_CEMIG.test(v)) return false; const n=v.replace(/\D/g,'').length; return n>=10&&n<=16; }
 function normCabCemig(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase(); }
-function ehCabecalhoUC(v0){ const n=normCabCemig(v0); return n==='instalacao'||n==='unidade consumidora'; }
+function ehNomeColUC(n){ return n==='instalacao'||n==='unidade consumidora'||n==='u.c./instalacao'||n==='u.c.'||n==='uc/instalacao'; }
+function ehCabecalhoUC(v0){ return ehNomeColUC(normCabCemig(v0)); }
 function mapearColunasCemig(rowCab,rowSeg){
   // padrão = layout antigo, usado se o cabeçalho não trouxer o nome da coluna
   const col={medidor:3,reg:8,oc:12,data:15,hora:17,apres:32,end:17};
