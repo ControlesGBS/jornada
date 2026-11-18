@@ -2238,10 +2238,41 @@ async function processarMatriculas(){
       funcao:r.FUNCAO||null,base:r.BASE||null,situacao:r.SITUACAO||null,
       data_admissao:r.ADMISSAO?excelToDate(r.ADMISSAO):null,
     })).filter(r=>r.matricula);
-    await sb.from('matriculas').delete().neq('matricula','__x__');
-    const {error}=await sb.from('matriculas').insert(recs);
-    if(error) throw error;
-    prog.className='progresso ok'; prog.textContent=`\u2713 ${recs.length} matrículas salvas!`;
+    const semMatricula=rows.length-recs.length;   // linhas sem matrícula são ignoradas (não dá erro)
+    if(!recs.length) throw new Error('Nenhuma matrícula encontrada na planilha (confira a coluna MATRICULA).');
+    // Nunca apaga a lista: o histórico (jornada, erros, reclamações...) guarda só o número da
+    // matrícula, e o nome/base vêm daqui. Quem veio na planilha é criado/atualizado; quem NÃO
+    // veio fica na lista como "Inativo" (nome e base preservados), pra o histórico continuar certo.
+    const unicas=new Map(); recs.forEach(r=>unicas.set(r.matricula,r));   // 2 linhas da mesma matrícula = fica a última
+    const lista=[...unicas.values()];
+    const existentes=[]; let _p=0;
+    while(true){
+      const {data:lote,error:eLer}=await sb.from('matriculas').select('matricula,situacao').order('matricula').range(_p,_p+999);
+      if(eLer) throw eLer;
+      if(!lote||!lote.length) break;
+      existentes.push(...lote);
+      if(lote.length<1000) break;
+      _p+=1000;
+    }
+    const naPlanilha=new Set(lista.map(r=>r.matricula));
+    const sairam=existentes.filter(r=>!naPlanilha.has(r.matricula)&&r.situacao!=='Inativo').map(r=>r.matricula);
+    const ativosAntes=existentes.filter(r=>r.situacao==='Ativo').length;
+    // trava de segurança: planilha errada (poucas linhas) inativaria quase todo mundo
+    if(ativosAntes>=10&&sairam.length>ativosAntes*0.5&&!confirm(`Atenção: ${sairam.length} de ${ativosAntes} matrículas ativas NÃO estão nesta planilha e vão ficar como Inativo.
+
+É a planilha certa (só ativos, lista completa)?`)){
+      throw new Error('Cancelado — nada foi alterado.');
+    }
+    for(let i=0;i<lista.length;i+=500){
+      const {error}=await sb.from('matriculas').upsert(lista.slice(i,i+500),{onConflict:'matricula'});
+      if(error) throw error;
+    }
+    for(let i=0;i<sairam.length;i+=200){
+      const {error}=await sb.from('matriculas').update({situacao:'Inativo'}).in('matricula',sairam.slice(i,i+200));
+      if(error) throw error;
+    }
+    prog.className='progresso ok';
+    prog.textContent=`✓ ${lista.length} matrículas salvas`+(sairam.length?` · ${sairam.length} que não vieram na planilha ficaram como Inativo (histórico preservado)`:'')+(semMatricula?` · ⚠ ${semMatricula} linha(s) sem matrícula foram ignoradas`:'')+'.';
   }catch(e){prog.className='progresso erro';prog.textContent='Erro: '+e.message;}
   btn.disabled=false;
 }
